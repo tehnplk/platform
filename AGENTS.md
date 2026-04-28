@@ -14,3 +14,6 @@
 
 ## deployment
 - read @docs/host.md
+
+## Testing result files
+- must place at  directory @.playwright-cli
