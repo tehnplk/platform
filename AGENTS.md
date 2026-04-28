@@ -1,5 +1,16 @@
-<!-- BEGIN:nextjs-agent-rules -->
-# This is NOT the Next.js you know
+# Repo feature
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
-<!-- END:nextjs-agent-rules -->
+- ระบบดาวน์โหลดโปรแกรม PlkPlatform.exe และตรวจสอบการอับเดทอัตโนมัติจากไฟล์ lastest.json
+- ระบบ WEB CHAT
+
+## Tect Stack
+- Nextjs @package.json
+- Supabase with realtime feature in docker containner name platform-repo-supabase
+
+
+## Command Line Tool
+- `npx ctx7 --help` for research tech document
+- `db-cli --skill` for mainipulate database
+
+## deployment
+- read @docs/host.md
