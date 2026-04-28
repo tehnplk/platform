@@ -48,9 +48,7 @@ function ChatRoom() {
     {
       id: genId(),
       role: "admin",
-      text: `สวัสดีครับ — เชื่อมต่อจากโรงพยาบาลรหัส ${
-        search.get("hoscode") ?? "—"
-      } พิมพ์ข้อความเพื่อเริ่มสนทนา`,
+      text: `สวัสดี ..... หน่วยบริการ ${search.get("hoscode") ?? "—"}`,
       at: Date.now(),
     },
   ]);
