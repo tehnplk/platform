@@ -580,7 +580,7 @@ export function ChatRoom({
   const videoFull = !!video;
   const docsFull = docs.length >= MAX_DOCS;
 
-  const headerTitle = role === "admin" ? "หน่วยบริการ" : "Plk Admin";
+  const headerTitle = role === "admin" ? "หน่วยบริการ" : "Admin Team";
   const headerSub =
     role === "admin"
       ? `hoscode ${hoscode}`

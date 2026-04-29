@@ -26,7 +26,7 @@ export default function UserChatPage() {
 function UserChat() {
   const search = useSearchParams();
   const hoscode = search.get("hoscode")?.trim();
-  useTitle("Admin Tem");
+  useTitle("Admin Team");
   if (!hoscode) {
     return (
       <main className="flex min-h-screen items-center justify-center px-4 py-6">
