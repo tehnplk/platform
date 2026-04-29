@@ -58,10 +58,18 @@ function AdminChat() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     try {
       const v = localStorage.getItem("chat:sidebarOpen");
-      if (v === "0") setSidebarOpen(false);
+      if (v === "0") {
+        window.requestAnimationFrame(() => {
+          if (!cancelled) setSidebarOpen(false);
+        });
+      }
     } catch {}
+    return () => {
+      cancelled = true;
+    };
   }, []);
   useEffect(() => {
     try {
@@ -102,15 +110,22 @@ function AdminChat() {
 
   useEffect(() => {
     if (!selected) return;
-    setList((prev) =>
-      prev.map((c) =>
-        c.hoscode === selected ? { ...c, admin_unread: 0 } : c,
-      ),
-    );
+    let cancelled = false;
+    window.requestAnimationFrame(() => {
+      if (cancelled) return;
+      setList((prev) =>
+        prev.map((c) =>
+          c.hoscode === selected ? { ...c, admin_unread: 0 } : c,
+        ),
+      );
+    });
     void fetch(
       `/api/chat/conversations/${encodeURIComponent(selected)}/read?role=admin`,
       { method: "POST" },
     );
+    return () => {
+      cancelled = true;
+    };
   }, [selected]);
 
   function selectHoscode(h: string) {

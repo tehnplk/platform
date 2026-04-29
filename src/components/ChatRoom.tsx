@@ -548,7 +548,7 @@ export function ChatRoom({
   }
 
   // Throttled "typing-start" + debounced "typing-stop" broadcast.
-  function broadcastTyping(state: "start" | "stop") {
+  const broadcastTyping = useCallback((state: "start" | "stop") => {
     const ch = channelRef.current;
     if (!ch) return;
     void ch.send({
@@ -556,7 +556,7 @@ export function ChatRoom({
       event: "typing",
       payload: { role, state },
     });
-  }
+  }, [role]);
 
   function notifyTyping(value: string) {
     if (typingStopTimerRef.current) {
@@ -663,7 +663,7 @@ export function ChatRoom({
       setSending(false);
       requestAnimationFrame(() => inputRef.current?.focus());
     }
-  }, [draft, images, video, docs, hoscode, role, sending]);
+  }, [broadcastTyping, draft, images, video, docs, hoscode, role, sending]);
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
