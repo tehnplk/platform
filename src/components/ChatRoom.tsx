@@ -123,6 +123,9 @@ function genId() {
 
 let _audioCtx: AudioContext | null = null;
 function getAudioCtx(): AudioContext | null {
+  return _audioCtx;
+}
+function ensureAudioCtx(): AudioContext | null {
   if (typeof window === "undefined") return null;
   if (_audioCtx) return _audioCtx;
   const Ctor =
@@ -131,6 +134,14 @@ function getAudioCtx(): AudioContext | null {
       .webkitAudioContext;
   if (!Ctor) return null;
   _audioCtx = new Ctor();
+  // Play a silent buffer to fully unlock the pipeline (iOS Safari, etc.)
+  try {
+    const buf = _audioCtx.createBuffer(1, 1, 22050);
+    const src = _audioCtx.createBufferSource();
+    src.buffer = buf;
+    src.connect(_audioCtx.destination);
+    src.start(0);
+  } catch {}
   return _audioCtx;
 }
 
@@ -228,11 +239,11 @@ export function ChatRoom({
     } catch {}
   }, [soundOn]);
 
-  // Browsers create AudioContext in "suspended" until any user gesture.
-  // Resume on the first interaction so the very first incoming chime plays.
+  // AudioContext can only be created/resumed inside a user gesture, so
+  // create it lazily on the first interaction with the page.
   useEffect(() => {
     const unlock = () => {
-      const ctx = getAudioCtx();
+      const ctx = ensureAudioCtx();
       if (ctx?.state === "suspended") ctx.resume().catch(() => {});
     };
     const events: Array<keyof WindowEventMap> = [
@@ -401,7 +412,7 @@ export function ChatRoom({
   }, []);
 
   function refocusOnPanelClick(e: React.MouseEvent<HTMLElement>) {
-    const ctx = getAudioCtx();
+    const ctx = ensureAudioCtx();
     if (ctx?.state === "suspended") ctx.resume().catch(() => {});
     const t = e.target as HTMLElement;
     if (t.closest("button, a, input, textarea, video, [contenteditable]")) {
@@ -695,7 +706,7 @@ export function ChatRoom({
           <button
             type="button"
             onClick={() => {
-              const ctx = getAudioCtx();
+              const ctx = ensureAudioCtx();
               if (ctx?.state === "suspended") ctx.resume().catch(() => {});
               setSoundOn((v) => !v);
             }}
