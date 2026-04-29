@@ -121,6 +121,41 @@ function genId() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 }
 
+let _audioCtx: AudioContext | null = null;
+function getAudioCtx(): AudioContext | null {
+  if (typeof window === "undefined") return null;
+  if (_audioCtx) return _audioCtx;
+  const Ctor =
+    window.AudioContext ??
+    (window as unknown as { webkitAudioContext?: typeof AudioContext })
+      .webkitAudioContext;
+  if (!Ctor) return null;
+  _audioCtx = new Ctor();
+  return _audioCtx;
+}
+
+function playKnock() {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  if (ctx.state === "suspended") ctx.resume().catch(() => {});
+  const knock = (offset: number) => {
+    const t0 = ctx.currentTime + offset;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(180, t0);
+    osc.frequency.exponentialRampToValueAtTime(70, t0 + 0.08);
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(0.4, t0 + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.12);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + 0.13);
+  };
+  knock(0);
+  knock(0.16);
+}
+
 function probeVideoDuration(file: File): Promise<number> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
@@ -242,6 +277,7 @@ export function ChatRoom({
           // The sender just sent — they have stopped typing.
           if (senderRole && senderRole !== role) {
             setTypingFrom((cur) => (cur === senderRole ? null : cur));
+            playKnock();
           }
           try {
             const r = await fetch(
@@ -332,6 +368,8 @@ export function ChatRoom({
   }, []);
 
   function refocusOnPanelClick(e: React.MouseEvent<HTMLElement>) {
+    const ctx = getAudioCtx();
+    if (ctx?.state === "suspended") ctx.resume().catch(() => {});
     const t = e.target as HTMLElement;
     if (t.closest("button, a, input, textarea, video, [contenteditable]")) {
       return;
