@@ -55,6 +55,19 @@ function AdminChat() {
   const [list, setList] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem("chat:sidebarOpen");
+      if (v === "0") setSidebarOpen(false);
+    } catch {}
+  }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem("chat:sidebarOpen", sidebarOpen ? "1" : "0");
+    } catch {}
+  }, [sidebarOpen]);
 
 
   const load = useCallback(async () => {
@@ -132,37 +145,53 @@ function AdminChat() {
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-6">
       <section className="flex h-[min(880px,90vh)] w-full max-w-[1200px] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--panel)] shadow-[0_20px_60px_rgba(0,0,0,0.4)]">
-        <aside className="flex w-[300px] shrink-0 flex-col border-r border-[var(--border)] bg-[var(--inset)]/40">
-          <header className="border-b border-[var(--border)] px-5 py-4">
-            <div className="flex items-center justify-between">
-              <div className="text-[15px] font-semibold">หน่วยบริการ</div>
+        <aside
+          className={`flex shrink-0 flex-col border-r border-[var(--border)] bg-[var(--inset)]/40 transition-[width] duration-200 ${
+            sidebarOpen ? "w-[300px]" : "w-[64px]"
+          }`}
+        >
+          <header
+            className={`border-b border-[var(--border)] ${
+              sidebarOpen ? "px-5 py-4" : "py-4 text-center"
+            }`}
+          >
+            {sidebarOpen ? (
+              <>
+                <div className="flex items-center justify-between">
+                  <div className="text-[15px] font-semibold">หน่วยบริการ</div>
+                  <div className="text-[11px] text-[var(--muted)]">
+                    {loading ? "กำลังโหลด…" : `${list.length} ห้อง`}
+                  </div>
+                </div>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void openSearch();
+                  }}
+                  className="mt-3 flex gap-2"
+                >
+                  <input
+                    type="text"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="ค้นรหัสหน่วยงาน…"
+                    className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--panel)] px-3 py-2 text-[13px] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/40"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!query.trim()}
+                    className="rounded-lg bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] px-3 text-[13px] font-bold text-[#00212f] disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="เปิดห้อง"
+                  >
+                    เปิด
+                  </button>
+                </form>
+              </>
+            ) : (
               <div className="text-[11px] text-[var(--muted)]">
-                {loading ? "กำลังโหลด…" : `${list.length} ห้อง`}
+                {loading ? "…" : list.length}
               </div>
-            </div>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                void openSearch();
-              }}
-              className="mt-3 flex gap-2"
-            >
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="ค้นรหัสหน่วยงาน…"
-                className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--panel)] px-3 py-2 text-[13px] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/40"
-              />
-              <button
-                type="submit"
-                disabled={!query.trim()}
-                className="rounded-lg bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] px-3 text-[13px] font-bold text-[#00212f] disabled:cursor-not-allowed disabled:opacity-40"
-                aria-label="เปิดห้อง"
-              >
-                เปิด
-              </button>
-            </form>
+            )}
           </header>
           <div className="flex-1 overflow-y-auto [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin]">
             {list.length === 0 && !loading && (
@@ -175,6 +204,29 @@ function AdminChat() {
               const preview = c.last_body
                 ? `${c.last_role === "admin" ? "คุณ: " : ""}${c.last_body}`
                 : "—";
+              if (!sidebarOpen) {
+                return (
+                  <button
+                    key={c.hoscode}
+                    onClick={() => selectHoscode(c.hoscode)}
+                    title={`${c.display_name ?? c.hoscode}${c.admin_unread > 0 ? ` (ใหม่ ${c.admin_unread})` : ""}`}
+                    className={`relative flex w-full items-center justify-center border-b border-[var(--border)]/60 py-3 transition-colors hover:bg-[var(--inset)] ${
+                      active ? "bg-[var(--inset)]" : ""
+                    }`}
+                  >
+                    <div className="relative">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] font-bold text-[#00212f]">
+                        {c.hoscode.slice(-2)}
+                      </div>
+                      {c.admin_unread > 0 && (
+                        <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent)] px-1 text-[11px] font-bold text-[#00212f] ring-2 ring-[var(--inset)]">
+                          {c.admin_unread}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              }
               return (
                 <div
                   key={c.hoscode}
@@ -227,7 +279,16 @@ function AdminChat() {
           </div>
         </aside>
 
-        <div className="flex flex-1 flex-col">
+        <div className="relative flex flex-1 flex-col">
+          <button
+            type="button"
+            onClick={() => setSidebarOpen((v) => !v)}
+            title={sidebarOpen ? "ซ่อนรายการห้อง" : "แสดงรายการห้อง"}
+            aria-label={sidebarOpen ? "ซ่อนรายการห้อง" : "แสดงรายการห้อง"}
+            className="absolute left-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-[var(--inset)] text-[var(--muted)] shadow-sm transition-colors hover:text-[var(--text)]"
+          >
+            {sidebarOpen ? "‹" : "›"}
+          </button>
           {selected ? (
             <ChatRoom
               key={selected}
