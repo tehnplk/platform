@@ -4,6 +4,17 @@ import { Suspense, useEffect, useState, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { ChatRoom } from "@/components/ChatRoom";
 
+function useTitle(value: string) {
+  useEffect(() => {
+    document.title = value;
+    const obs = new MutationObserver(() => {
+      if (document.title !== value) document.title = value;
+    });
+    obs.observe(document.head, { childList: true, subtree: true });
+    return () => obs.disconnect();
+  }, [value]);
+}
+
 type Conversation = {
   hoscode: string;
   display_name: string | null;
@@ -116,9 +127,10 @@ function AdminChat() {
     );
   }
 
+  useTitle(selected ?? "Admin");
+
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-6">
-      <title>{selected ?? "Admin"}</title>
       <section className="flex h-[min(880px,90vh)] w-full max-w-[1200px] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--panel)] shadow-[0_20px_60px_rgba(0,0,0,0.4)]">
         <aside className="flex w-[300px] shrink-0 flex-col border-r border-[var(--border)] bg-[var(--inset)]/40">
           <header className="border-b border-[var(--border)] px-5 py-4">
