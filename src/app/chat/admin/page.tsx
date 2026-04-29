@@ -45,9 +45,6 @@ function AdminChat() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
 
-  useEffect(() => {
-    document.title = selected ?? "Admin";
-  }, [selected]);
 
   const load = useCallback(async () => {
     try {
@@ -121,6 +118,7 @@ function AdminChat() {
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-6">
+      <title>{selected ?? "Admin"}</title>
       <section className="flex h-[min(880px,90vh)] w-full max-w-[1200px] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--panel)] shadow-[0_20px_60px_rgba(0,0,0,0.4)]">
         <aside className="flex w-[300px] shrink-0 flex-col border-r border-[var(--border)] bg-[var(--inset)]/40">
           <header className="border-b border-[var(--border)] px-5 py-4">
