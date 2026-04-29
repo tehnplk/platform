@@ -228,6 +228,25 @@ export function ChatRoom({
     } catch {}
   }, [soundOn]);
 
+  // Browsers create AudioContext in "suspended" until any user gesture.
+  // Resume on the first interaction so the very first incoming chime plays.
+  useEffect(() => {
+    const unlock = () => {
+      const ctx = getAudioCtx();
+      if (ctx?.state === "suspended") ctx.resume().catch(() => {});
+    };
+    const events: Array<keyof WindowEventMap> = [
+      "pointerdown",
+      "keydown",
+      "touchstart",
+    ];
+    const opts = { once: true, passive: true } as const;
+    events.forEach((e) => window.addEventListener(e, unlock, opts));
+    return () => {
+      events.forEach((e) => window.removeEventListener(e, unlock));
+    };
+  }, []);
+
   const channelRef = useRef<ReturnType<RealtimeClient["channel"]> | null>(null);
   const typingClearRef = useRef<number | null>(null);
   const typingBroadcastSentAtRef = useRef(0);
