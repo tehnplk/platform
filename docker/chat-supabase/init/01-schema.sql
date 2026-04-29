@@ -15,8 +15,10 @@ create table if not exists conversations (
   created_at       timestamptz not null default now(),
   last_message_at  timestamptz,
   user_unread      int not null default 0,
-  admin_unread     int not null default 0
+  admin_unread     int not null default 0,
+  hidden_at        timestamptz
 );
+alter table conversations add column if not exists hidden_at timestamptz;
 
 create table if not exists messages (
   id          uuid primary key default gen_random_uuid(),
@@ -71,6 +73,23 @@ drop trigger if exists messages_bump_conversation on messages;
 create trigger messages_bump_conversation
   after insert on messages
   for each row execute function bump_conversation();
+
+-- Retention: keep only last 7 days of messages per hoscode.
+-- Triggered on each insert (amortized cleanup; cascades to attachments).
+create or replace function purge_old_messages() returns trigger
+  language plpgsql as $$
+begin
+  delete from messages
+   where hoscode = new.hoscode
+     and created_at < now() - interval '7 days';
+  return new;
+end;
+$$;
+
+drop trigger if exists messages_purge_old on messages;
+create trigger messages_purge_old
+  after insert on messages
+  for each row execute function purge_old_messages();
 
 -- Add tables to realtime publication (created by realtime container)
 do $$

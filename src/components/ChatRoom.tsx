@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   useCallback,
   useEffect,
   useRef,
@@ -95,6 +96,27 @@ function formatTime(iso: string) {
   });
 }
 
+function dateKey(iso: string) {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+function formatDateSeparator(iso: string) {
+  const d = new Date(iso);
+  const today = new Date();
+  if (
+    d.getFullYear() === today.getFullYear() &&
+    d.getMonth() === today.getMonth() &&
+    d.getDate() === today.getDate()
+  ) {
+    return "วันนี้";
+  }
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear() + 543;
+  return `${dd}/${mm}/${yyyy}`;
+}
+
 function genId() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 }
@@ -141,9 +163,11 @@ function toMessage(s: ServerMessage): Message {
 export function ChatRoom({
   hoscode,
   role,
+  embedded = false,
 }: {
   hoscode: string;
   role: ChatRole;
+  embedded?: boolean;
 }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
@@ -529,6 +553,7 @@ export function ChatRoom({
       setMessages((prev) => prev.filter((m) => m.client_id !== clientId));
     } finally {
       setSending(false);
+      requestAnimationFrame(() => inputRef.current?.focus());
     }
   }, [draft, images, video, docs, hoscode, role, sending]);
 
@@ -559,13 +584,21 @@ export function ChatRoom({
   const headerSub =
     role === "admin"
       ? `hoscode ${hoscode}`
-      : `ออนไลน์ · hoscode ${hoscode}`;
+      : "ออนไลน์";
+
+  const Outer = embedded ? "div" : "main";
+  const outerClass = embedded
+    ? "flex h-full w-full"
+    : "flex min-h-screen items-center justify-center px-4 py-6";
+  const sectionClass = embedded
+    ? "flex h-full w-full flex-col overflow-hidden bg-[var(--panel)]"
+    : "flex h-[min(880px,90vh)] w-full max-w-[860px] flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--panel)] shadow-[0_20px_60px_rgba(0,0,0,0.4)]";
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 py-6">
+    <Outer className={outerClass}>
       <section
         onClick={refocusOnPanelClick}
-        className="flex h-[min(880px,90vh)] w-full max-w-[860px] flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--panel)] shadow-[0_20px_60px_rgba(0,0,0,0.4)]">
+        className={sectionClass}>
         <header className="flex items-center gap-3 border-b border-[var(--border)] bg-[var(--inset)]/60 px-6 py-4 backdrop-blur">
           <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] font-bold text-[#00212f]">
             {role === "admin" ? hoscode.slice(-2) : adminInitial}
@@ -577,8 +610,16 @@ export function ChatRoom({
             />
           </div>
           <div className="flex flex-col leading-tight">
-            <span className="text-[15px] font-semibold">{headerTitle}</span>
-            <span className="text-[12px] text-[var(--muted)]">{headerSub}</span>
+            {role === "admin" ? (
+              <span className="text-[15px] font-semibold">
+                {headerTitle} <span className="text-[var(--muted)]">{hoscode}</span>
+              </span>
+            ) : (
+              <>
+                <span className="text-[15px] font-semibold">{headerTitle}</span>
+                <span className="text-[12px] text-[var(--muted)]">{headerSub}</span>
+              </>
+            )}
           </div>
           <div className="ml-auto rounded-full border border-[var(--border)] bg-[var(--inset)] px-3 py-1 font-mono text-[11px] text-[var(--muted)]">
             {role === "admin" ? "admin" : "user"}
@@ -591,18 +632,26 @@ export function ChatRoom({
         >
           {messages.map((m, i) => {
             const prev = messages[i - 1];
-            // From the viewer's perspective, a message is "mine" if the
-            // viewer's role matches the message role.
             const mine = m.role === role;
             const showAvatar = !prev || prev.role !== m.role;
+            const showDateSep =
+              !prev || dateKey(prev.created_at) !== dateKey(m.created_at);
             return (
-              <Bubble
-                key={m.id}
-                msg={m}
-                mine={mine}
-                showAvatar={showAvatar}
-                adminInitial={adminInitial}
-              />
+              <Fragment key={m.id}>
+                {showDateSep && (
+                  <div className="flex items-center justify-center py-2">
+                    <span className="rounded-full bg-[var(--inset)] px-3 py-1 text-[11px] text-[var(--muted)]">
+                      {formatDateSeparator(m.created_at)}
+                    </span>
+                  </div>
+                )}
+                <Bubble
+                  msg={m}
+                  mine={mine}
+                  showAvatar={showAvatar}
+                  adminInitial={adminInitial}
+                />
+              </Fragment>
             );
           })}
           {typingFrom && (
@@ -730,7 +779,7 @@ export function ChatRoom({
           </div>
         </form>
       </section>
-    </main>
+    </Outer>
   );
 }
 
