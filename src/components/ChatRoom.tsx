@@ -212,6 +212,21 @@ export function ChatRoom({
   const [sending, setSending] = useState(false);
   const [connected, setConnected] = useState(false);
   const [typingFrom, setTypingFrom] = useState<ChatRole | null>(null);
+  const [soundOn, setSoundOn] = useState(true);
+
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem("chat:soundOn");
+      if (v === "0") setSoundOn(false);
+    } catch {}
+  }, []);
+  const soundOnRef = useRef(true);
+  useEffect(() => {
+    soundOnRef.current = soundOn;
+    try {
+      localStorage.setItem("chat:soundOn", soundOn ? "1" : "0");
+    } catch {}
+  }, [soundOn]);
 
   const channelRef = useRef<ReturnType<RealtimeClient["channel"]> | null>(null);
   const typingClearRef = useRef<number | null>(null);
@@ -276,7 +291,7 @@ export function ChatRoom({
           // The sender just sent — they have stopped typing.
           if (senderRole && senderRole !== role) {
             setTypingFrom((cur) => (cur === senderRole ? null : cur));
-            playKnock();
+            if (soundOnRef.current) playKnock();
           }
           try {
             const r = await fetch(
@@ -658,6 +673,19 @@ export function ChatRoom({
               </>
             )}
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              const ctx = getAudioCtx();
+              if (ctx?.state === "suspended") ctx.resume().catch(() => {});
+              setSoundOn((v) => !v);
+            }}
+            title={soundOn ? "ปิดเสียงเตือน" : "เปิดเสียงเตือน"}
+            aria-label={soundOn ? "ปิดเสียงเตือน" : "เปิดเสียงเตือน"}
+            className="ml-2 flex h-8 w-8 items-center justify-center rounded-full text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--text)]"
+          >
+            {soundOn ? <SpeakerOnIcon /> : <SpeakerOffIcon />}
+          </button>
           <div className="ml-auto rounded-full border border-[var(--border)] bg-[var(--inset)] px-3 py-1 font-mono text-[11px] text-[var(--muted)]">
             {role === "admin" ? "admin" : "user"}
           </div>
@@ -1201,6 +1229,44 @@ function XIcon() {
     >
       <path d="M18 6 6 18" />
       <path d="m6 6 12 12" />
+    </svg>
+  );
+}
+
+function SpeakerOnIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+      aria-hidden
+    >
+      <path d="M11 5 6 9H2v6h4l5 4z" />
+      <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+    </svg>
+  );
+}
+
+function SpeakerOffIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+      aria-hidden
+    >
+      <path d="M11 5 6 9H2v6h4l5 4z" />
+      <line x1="22" y1="9" x2="16" y2="15" />
+      <line x1="16" y1="9" x2="22" y2="15" />
     </svg>
   );
 }
