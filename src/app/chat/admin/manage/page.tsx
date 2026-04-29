@@ -287,7 +287,12 @@ export default function AdminManagePage() {
                         {formatDateTime(item.last_chat_date_time)}
                       </td>
                       <td className="px-6 py-4 font-mono text-[14px]">
-                        {item.hoscode}
+                        <Link
+                          href={`/chat/admin?hoscode=${encodeURIComponent(item.hoscode)}`}
+                          className="transition-colors hover:text-[var(--accent)] hover:underline"
+                        >
+                          {item.hoscode}
+                        </Link>
                       </td>
                       <td className="px-6 py-4 text-right font-mono text-[14px]">
                         {item.count_message.toLocaleString("th-TH")}

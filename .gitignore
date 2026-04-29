@@ -44,5 +44,5 @@ next-env.d.ts
 /docs
 .playwright-cli/
 
-./public/plkplatform/*.*
+/public/plkplatform/
 .claude

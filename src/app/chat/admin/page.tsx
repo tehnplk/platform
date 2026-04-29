@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Suspense, useEffect, useState, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { ChatRoom } from "@/components/ChatRoom";
@@ -113,20 +114,39 @@ function AdminChat() {
     let cancelled = false;
     window.requestAnimationFrame(() => {
       if (cancelled) return;
-      setList((prev) =>
-        prev.map((c) =>
+      setList((prev) => {
+        const exists = prev.some((c) => c.hoscode === selected);
+        if (!exists) {
+          return [
+            {
+              hoscode: selected,
+              display_name: null,
+              last_message_at: null,
+              admin_unread: 0,
+              last_body: null,
+              last_role: null,
+            },
+            ...prev,
+          ];
+        }
+        return prev.map((c) =>
           c.hoscode === selected ? { ...c, admin_unread: 0 } : c,
-        ),
-      );
+        );
+      });
     });
-    void fetch(
-      `/api/chat/conversations/${encodeURIComponent(selected)}/read?role=admin`,
-      { method: "POST" },
-    );
+    void (async () => {
+      await fetch(
+        `/api/chat/conversations/${encodeURIComponent(selected)}/unhide`,
+        { method: "POST" },
+      );
+      if (!cancelled) {
+        await load();
+      }
+    })();
     return () => {
       cancelled = true;
     };
-  }, [selected]);
+  }, [load, selected]);
 
   function selectHoscode(h: string) {
     router.replace(`/chat/admin?hoscode=${encodeURIComponent(h)}`);
@@ -155,7 +175,7 @@ function AdminChat() {
     );
   }
 
-  useTitle(selected ?? "Admin");
+  useTitle(selected ?? "Admin Chat Console");
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-6">
@@ -268,14 +288,14 @@ function AdminChat() {
                 >
                   <button
                     onClick={() => selectHoscode(c.hoscode)}
-                    className="flex flex-1 items-start gap-3 px-5 py-3 text-left"
+                    className="flex min-w-0 flex-1 items-start gap-3 px-5 py-3 text-left"
                   >
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] font-bold text-[#00212f]">
                       {c.hoscode.slice(-2)}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-[14px] font-semibold">
+                      <div className="flex min-w-0 items-center justify-between gap-2">
+                        <span className="block min-w-0 flex-1 truncate text-[14px] font-semibold">
                           {c.display_name ?? c.hoscode}
                         </span>
                         <span className="shrink-0 text-[11px] text-[var(--muted)]">
@@ -283,7 +303,7 @@ function AdminChat() {
                         </span>
                       </div>
                       <div className="flex items-center justify-between gap-2">
-                        <span className="truncate text-[12px] text-[var(--muted)]">
+                        <span className="block max-w-[180px] min-w-0 flex-1 truncate text-[12px] text-[var(--muted)]">
                           {preview}
                         </span>
                         {c.admin_unread > 0 && (
@@ -308,6 +328,24 @@ function AdminChat() {
                 </div>
               );
             })}
+          </div>
+          <div
+            className={`border-t border-[var(--border)] ${
+              sidebarOpen ? "p-4" : "p-2"
+            }`}
+          >
+            <Link
+              href="/chat/admin/manage"
+              title="Manage conversations"
+              aria-label="Manage conversations"
+              className={`flex items-center rounded-xl border border-[var(--border)] bg-[var(--panel)] text-[13px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)] ${
+                sidebarOpen
+                  ? "justify-center px-3 py-2.5"
+                  : "mx-auto h-10 w-10 justify-center"
+              }`}
+            >
+              {sidebarOpen ? "Manage" : "M"}
+            </Link>
           </div>
         </aside>
 
