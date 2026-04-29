@@ -152,15 +152,26 @@ function AdminChat() {
         >
           <header
             className={`border-b border-[var(--border)] ${
-              sidebarOpen ? "px-5 py-4" : "py-4 text-center"
+              sidebarOpen ? "px-5 py-4" : "px-2 py-3 text-center"
             }`}
           >
             {sidebarOpen ? (
               <>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <div className="text-[15px] font-semibold">หน่วยบริการ</div>
-                  <div className="text-[11px] text-[var(--muted)]">
-                    {loading ? "กำลังโหลด…" : `${list.length} ห้อง`}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-[var(--muted)]">
+                      {loading ? "กำลังโหลด…" : `${list.length} ห้อง`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSidebarOpen(false)}
+                      title="ย่อรายการห้อง"
+                      aria-label="ย่อรายการห้อง"
+                      className="flex h-6 w-6 items-center justify-center rounded-full text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--text)]"
+                    >
+                      ‹
+                    </button>
                   </div>
                 </div>
                 <form
@@ -188,9 +199,15 @@ function AdminChat() {
                 </form>
               </>
             ) : (
-              <div className="text-[11px] text-[var(--muted)]">
-                {loading ? "…" : list.length}
-              </div>
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(true)}
+                title="ขยายรายการห้อง"
+                aria-label="ขยายรายการห้อง"
+                className="mx-auto flex h-8 w-8 items-center justify-center rounded-full text-[var(--muted)] transition-colors hover:bg-[var(--inset)] hover:text-[var(--text)]"
+              >
+                ›
+              </button>
             )}
           </header>
           <div className="flex-1 overflow-y-auto [scrollbar-color:var(--border)_transparent] [scrollbar-width:thin]">
@@ -280,15 +297,6 @@ function AdminChat() {
         </aside>
 
         <div className="relative flex flex-1 flex-col">
-          <button
-            type="button"
-            onClick={() => setSidebarOpen((v) => !v)}
-            title={sidebarOpen ? "ซ่อนรายการห้อง" : "แสดงรายการห้อง"}
-            aria-label={sidebarOpen ? "ซ่อนรายการห้อง" : "แสดงรายการห้อง"}
-            className="absolute left-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-[var(--inset)] text-[var(--muted)] shadow-sm transition-colors hover:text-[var(--text)]"
-          >
-            {sidebarOpen ? "‹" : "›"}
-          </button>
           {selected ? (
             <ChatRoom
               key={selected}
