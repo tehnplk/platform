@@ -715,6 +715,8 @@ export function ChatRoom({
                   mine={mine}
                   showAvatar={showAvatar}
                   adminInitial={adminInitial}
+                  viewerRole={role}
+                  hoscode={hoscode}
                 />
               </Fragment>
             );
@@ -723,6 +725,8 @@ export function ChatRoom({
             <TypingIndicator
               from={typingFrom}
               adminInitial={adminInitial}
+              viewerRole={role}
+              hoscode={hoscode}
             />
           )}
         </div>
@@ -853,11 +857,15 @@ function Bubble({
   mine,
   showAvatar,
   adminInitial,
+  viewerRole,
+  hoscode,
 }: {
   msg: Message;
   mine: boolean;
   showAvatar: boolean;
   adminInitial: string;
+  viewerRole: ChatRole;
+  hoscode: string;
 }) {
   const hasText = msg.body.length > 0;
   const hasAttachments = msg.attachments.length > 0;
@@ -874,9 +882,15 @@ function Bubble({
       <div className="w-8 shrink-0">
         {showAvatar &&
           (msg.role === "user" ? (
-            <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--inset)] text-[12px] font-semibold text-[var(--muted)]">
-              คุณ
-            </div>
+            viewerRole === "admin" ? (
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] text-[12px] font-bold text-[#00212f]">
+                {hoscode.slice(-2)}
+              </div>
+            ) : (
+              <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--inset)] text-[12px] font-semibold text-[var(--muted)]">
+                คุณ
+              </div>
+            )
           ) : (
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] text-[12px] font-bold text-[#00212f]">
               {adminInitial}
@@ -1073,17 +1087,27 @@ function AttachButton({
 function TypingIndicator({
   from,
   adminInitial,
+  viewerRole,
+  hoscode,
 }: {
   from: ChatRole;
   adminInitial: string;
+  viewerRole: ChatRole;
+  hoscode: string;
 }) {
   return (
     <div className="flex items-end gap-2 chat-bubble-in">
       <div className="w-8 shrink-0">
         {from === "user" ? (
-          <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--inset)] text-[12px] font-semibold text-[var(--muted)]">
-            คุณ
-          </div>
+          viewerRole === "admin" ? (
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] text-[12px] font-bold text-[#00212f]">
+              {hoscode.slice(-2)}
+            </div>
+          ) : (
+            <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--inset)] text-[12px] font-semibold text-[var(--muted)]">
+              คุณ
+            </div>
+          )
         ) : (
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] text-[12px] font-bold text-[#00212f]">
             {adminInitial}
