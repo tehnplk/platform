@@ -121,49 +121,49 @@ function genId() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 }
 
-let _audioCtx: AudioContext | null = null;
-function getAudioCtx(): AudioContext | null {
-  return _audioCtx;
-}
-function ensureAudioCtx(): AudioContext | null {
+// Notification chime — preloaded MP3 served from /public/sounds/notify.mp3.
+// Using a plain <audio> element instead of Web Audio API simplifies the
+// autoplay-policy story: a single user interaction unlocks future
+// .play() calls, no context resume gymnastics needed.
+let _audio: HTMLAudioElement | null = null;
+function ensureAudio(): HTMLAudioElement | null {
   if (typeof window === "undefined") return null;
-  if (_audioCtx) return _audioCtx;
-  const Ctor =
-    window.AudioContext ??
-    (window as unknown as { webkitAudioContext?: typeof AudioContext })
-      .webkitAudioContext;
-  if (!Ctor) return null;
-  _audioCtx = new Ctor();
-  // Play a silent buffer to fully unlock the pipeline (iOS Safari, etc.)
-  try {
-    const buf = _audioCtx.createBuffer(1, 1, 22050);
-    const src = _audioCtx.createBufferSource();
-    src.buffer = buf;
-    src.connect(_audioCtx.destination);
-    src.start(0);
-  } catch {}
-  return _audioCtx;
+  if (_audio) return _audio;
+  _audio = new Audio("/sounds/notify.mp3");
+  _audio.preload = "auto";
+  _audio.volume = 0.7;
+  return _audio;
 }
 
 function playKnock() {
-  const ctx = getAudioCtx();
-  if (!ctx) return;
-  if (ctx.state === "suspended") ctx.resume().catch(() => {});
-  const note = (freq: number, offset: number, peak = 0.22) => {
-    const t0 = ctx.currentTime + offset;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(freq, t0);
-    gain.gain.setValueAtTime(0.0001, t0);
-    gain.gain.exponentialRampToValueAtTime(peak, t0 + 0.015);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.65);
-    osc.connect(gain).connect(ctx.destination);
-    osc.start(t0);
-    osc.stop(t0 + 0.7);
-  };
-  note(523.25, 0);     // C5
-  note(659.25, 0.08);  // E5 (major third up)
+  const a = ensureAudio();
+  if (!a) return;
+  try {
+    a.muted = false;
+    a.currentTime = 0;
+    void a.play().catch(() => {});
+  } catch {}
+}
+
+function unlockAudio({ audible }: { audible: boolean }) {
+  const a = ensureAudio();
+  if (!a) return Promise.resolve();
+  const prevMuted = a.muted;
+  a.muted = !audible;
+  a.currentTime = 0;
+  return a
+    .play()
+    .then(() => {
+      if (!audible) {
+        a.pause();
+        a.currentTime = 0;
+        a.muted = prevMuted;
+      }
+    })
+    .catch((err) => {
+      a.muted = prevMuted;
+      throw err;
+    });
 }
 
 function probeVideoDuration(file: File): Promise<number> {
@@ -223,32 +223,54 @@ export function ChatRoom({
   const [sending, setSending] = useState(false);
   const [connected, setConnected] = useState(false);
   const [typingFrom, setTypingFrom] = useState<ChatRole | null>(null);
-  const [soundOn, setSoundOn] = useState(true);
+  const [soundOn, setSoundOn] = useState(false);
+  const soundOnRef = useRef(false);
+  const soundPreferenceLoadedRef = useRef(false);
 
   useEffect(() => {
+    let cancelled = false;
     try {
       const v = localStorage.getItem("chat:soundOn");
-      if (v === "0") setSoundOn(false);
-    } catch {}
+      const enabled = v === "1";
+      soundOnRef.current = enabled;
+      if (enabled) {
+        window.requestAnimationFrame(() => {
+          if (!cancelled) {
+            soundPreferenceLoadedRef.current = true;
+            setSoundOn(true);
+          }
+        });
+      } else {
+        soundPreferenceLoadedRef.current = true;
+      }
+    } catch {
+      soundPreferenceLoadedRef.current = true;
+    }
+    return () => {
+      cancelled = true;
+    };
   }, []);
-  const soundOnRef = useRef(true);
   useEffect(() => {
+    if (!soundPreferenceLoadedRef.current) return;
     soundOnRef.current = soundOn;
     try {
       localStorage.setItem("chat:soundOn", soundOn ? "1" : "0");
     } catch {}
   }, [soundOn]);
 
-  // AudioContext can only be created/resumed inside a user gesture, so
-  // attach capture-phase listeners that fire before any other handler.
-  // Re-arm until we've confirmed the context is running, since some
-  // browsers don't honour the very first resume().
+  // Browsers block .play() until a user gesture. If sound is already enabled
+  // from localStorage, the first interaction must play audibly to unlock later
+  // notification sounds reliably across browsers.
   useEffect(() => {
+    let unlocked = false;
     const unlock = () => {
-      const ctx = ensureAudioCtx();
-      if (!ctx) return;
-      if (ctx.state !== "running") ctx.resume().catch(() => {});
-      if (ctx.state === "running") detach();
+      if (unlocked) return;
+      unlockAudio({ audible: soundOnRef.current })
+        .then(() => {
+          unlocked = true;
+          detach();
+        })
+        .catch(() => {});
     };
     const events: Array<keyof DocumentEventMap> = [
       "pointerdown",
@@ -418,8 +440,6 @@ export function ChatRoom({
   }, []);
 
   function refocusOnPanelClick(e: React.MouseEvent<HTMLElement>) {
-    const ctx = ensureAudioCtx();
-    if (ctx?.state === "suspended") ctx.resume().catch(() => {});
     const t = e.target as HTMLElement;
     if (t.closest("button, a, input, textarea, video, [contenteditable]")) {
       return;
@@ -712,9 +732,15 @@ export function ChatRoom({
           <button
             type="button"
             onClick={() => {
-              const ctx = ensureAudioCtx();
-              if (ctx?.state === "suspended") ctx.resume().catch(() => {});
-              setSoundOn((v) => !v);
+              setSoundOn((v) => {
+                const next = !v;
+                soundOnRef.current = next;
+                soundPreferenceLoadedRef.current = true;
+                if (next) {
+                  void unlockAudio({ audible: true }).catch(() => {});
+                }
+                return next;
+              });
             }}
             title={soundOn ? "ปิดเสียงเตือน" : "เปิดเสียงเตือน"}
             aria-label={soundOn ? "ปิดเสียงเตือน" : "เปิดเสียงเตือน"}
