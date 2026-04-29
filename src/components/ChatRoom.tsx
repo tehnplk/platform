@@ -313,16 +313,16 @@ export function ChatRoom({
       .on(
         "broadcast",
         { event: "new-message" },
-        async (payload: {
+        async (payload?: {
           payload?: {
             id?: string;
             client_id?: string | null;
             role?: ChatRole;
           };
         }) => {
-          const id = payload.payload?.id;
-          const clientId = payload.payload?.client_id ?? null;
-          const senderRole = payload.payload?.role;
+          const id = payload?.payload?.id;
+          const clientId = payload?.payload?.client_id ?? null;
+          const senderRole = payload?.payload?.role;
           if (!id) return;
           // The sender just sent — they have stopped typing.
           if (senderRole && senderRole !== role) {
@@ -358,9 +358,9 @@ export function ChatRoom({
       .on(
         "broadcast",
         { event: "typing" },
-        (payload: { payload?: { role?: ChatRole; state?: "start" | "stop" } }) => {
-          const senderRole = payload.payload?.role;
-          const state = payload.payload?.state;
+        (payload?: { payload?: { role?: ChatRole; state?: "start" | "stop" } }) => {
+          const senderRole = payload?.payload?.role;
+          const state = payload?.payload?.state;
           if (!senderRole || senderRole === role) return;
           if (state === "start") {
             setTypingFrom(senderRole);
