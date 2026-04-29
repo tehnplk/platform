@@ -23,3 +23,4 @@
 
 ## deployment
 - read @docs/host.md
+- main url = https://platform.plkhealth.go.th/ 
