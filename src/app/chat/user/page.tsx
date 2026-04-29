@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { ChatRoom } from "@/components/ChatRoom";
 
@@ -15,6 +15,9 @@ export default function UserChatPage() {
 function UserChat() {
   const search = useSearchParams();
   const hoscode = search.get("hoscode")?.trim();
+  useEffect(() => {
+    document.title = "Admin Tem";
+  }, []);
   if (!hoscode) {
     return (
       <main className="flex min-h-screen items-center justify-center px-4 py-6">

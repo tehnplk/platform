@@ -45,6 +45,10 @@ function AdminChat() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
 
+  useEffect(() => {
+    document.title = selected ?? "Admin";
+  }, [selected]);
+
   const load = useCallback(async () => {
     try {
       const r = await fetch("/api/chat/conversations", { cache: "no-store" });
