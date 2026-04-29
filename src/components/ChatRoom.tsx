@@ -240,22 +240,28 @@ export function ChatRoom({
   }, [soundOn]);
 
   // AudioContext can only be created/resumed inside a user gesture, so
-  // create it lazily on the first interaction with the page.
+  // attach capture-phase listeners that fire before any other handler.
+  // Re-arm until we've confirmed the context is running, since some
+  // browsers don't honour the very first resume().
   useEffect(() => {
     const unlock = () => {
       const ctx = ensureAudioCtx();
-      if (ctx?.state === "suspended") ctx.resume().catch(() => {});
+      if (!ctx) return;
+      if (ctx.state !== "running") ctx.resume().catch(() => {});
+      if (ctx.state === "running") detach();
     };
-    const events: Array<keyof WindowEventMap> = [
+    const events: Array<keyof DocumentEventMap> = [
       "pointerdown",
+      "click",
       "keydown",
       "touchstart",
     ];
-    const opts = { once: true, passive: true } as const;
-    events.forEach((e) => window.addEventListener(e, unlock, opts));
-    return () => {
-      events.forEach((e) => window.removeEventListener(e, unlock));
+    const opts = { capture: true, passive: true } as const;
+    const detach = () => {
+      events.forEach((e) => document.removeEventListener(e, unlock, opts));
     };
+    events.forEach((e) => document.addEventListener(e, unlock, opts));
+    return detach;
   }, []);
 
   const channelRef = useRef<ReturnType<RealtimeClient["channel"]> | null>(null);
