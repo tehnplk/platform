@@ -138,22 +138,21 @@ function playKnock() {
   const ctx = getAudioCtx();
   if (!ctx) return;
   if (ctx.state === "suspended") ctx.resume().catch(() => {});
-  const knock = (offset: number) => {
+  const note = (freq: number, offset: number, peak = 0.22) => {
     const t0 = ctx.currentTime + offset;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = "sine";
-    osc.frequency.setValueAtTime(180, t0);
-    osc.frequency.exponentialRampToValueAtTime(70, t0 + 0.08);
+    osc.frequency.setValueAtTime(freq, t0);
     gain.gain.setValueAtTime(0.0001, t0);
-    gain.gain.exponentialRampToValueAtTime(0.4, t0 + 0.005);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.12);
+    gain.gain.exponentialRampToValueAtTime(peak, t0 + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.65);
     osc.connect(gain).connect(ctx.destination);
     osc.start(t0);
-    osc.stop(t0 + 0.13);
+    osc.stop(t0 + 0.7);
   };
-  knock(0);
-  knock(0.16);
+  note(523.25, 0);     // C5
+  note(659.25, 0.08);  // E5 (major third up)
 }
 
 function probeVideoDuration(file: File): Promise<number> {
