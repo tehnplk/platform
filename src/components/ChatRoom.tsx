@@ -236,6 +236,7 @@ export function ChatRoom({
   const [soundOn, setSoundOn] = useState(true);
   const [selectedImage, setSelectedImage] = useState<Attachment | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<Message | null>(null);
   const [cancellingIds, setCancellingIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -732,8 +733,16 @@ export function ChatRoom({
     });
   }
 
+  const closeCancelModal = useCallback(() => {
+    setCancelTarget(null);
+    window.requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+  }, []);
+
   const cancelMessage = useCallback(
     async (messageId: string) => {
+      closeCancelModal();
       setCancellingIds((prev) => new Set(prev).add(messageId));
       setError(null);
       try {
@@ -762,7 +771,7 @@ export function ChatRoom({
         });
       }
     },
-    [hoscode, role],
+    [closeCancelModal, hoscode, role],
   );
 
   const send = useCallback(async () => {
@@ -878,11 +887,13 @@ export function ChatRoom({
   }
 
   const adminInitial = "A";
+  const composerLocked = !!cancelTarget;
   const canSend =
     (draft.trim().length > 0 ||
       images.length > 0 ||
       docs.length > 0) &&
-    !sending;
+    !sending &&
+    !composerLocked;
   const imagesFull = images.length >= MAX_IMAGES;
   const docsFull = docs.length >= MAX_DOCS;
   const headerTitle = role === "admin" ? "หน่วยบริการ" : "Admin Team";
@@ -903,7 +914,7 @@ export function ChatRoom({
     <Outer className={outerClass}>
       <section
         onClick={refocusOnPanelClick}
-        className={sectionClass}>
+        className={`${sectionClass} relative`}>
         <header className="flex items-center gap-3 border-b border-[var(--border)] bg-[var(--inset)]/60 px-6 py-4 backdrop-blur">
           <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] font-bold text-[#00212f]">
             {role === "admin" ? hoscode.slice(-2) : adminInitial}
@@ -979,7 +990,7 @@ export function ChatRoom({
                     !m.cancelled_at
                   }
                   cancelling={cancellingIds.has(m.id)}
-                  onCancel={() => void cancelMessage(m.id)}
+                  onCancel={() => setCancelTarget(m)}
                   showAvatar={showAvatar}
                   adminInitial={adminInitial}
                   viewerRole={role}
@@ -1047,7 +1058,7 @@ export function ChatRoom({
 
             <AttachButton
               onClick={() => imageInputRef.current?.click()}
-              disabled={imagesFull || sending}
+              disabled={imagesFull || sending || composerLocked}
               title={
                 imagesFull
                   ? `แนบครบ ${MAX_IMAGES} รูปแล้ว`
@@ -1058,7 +1069,7 @@ export function ChatRoom({
             />
             <AttachButton
               onClick={() => docInputRef.current?.click()}
-              disabled={docsFull || sending}
+              disabled={docsFull || sending || composerLocked}
               title={
                 docsFull
                   ? `แนบเอกสารครบ ${MAX_DOCS} ไฟล์แล้ว`
@@ -1070,7 +1081,7 @@ export function ChatRoom({
             <div className="relative shrink-0">
               <AttachButton
                 onClick={() => setEmojiOpen((open) => !open)}
-                disabled={sending}
+                disabled={sending || composerLocked}
                 title="เลือก emoji"
                 icon={<SmileIcon />}
                 badge={null}
@@ -1103,7 +1114,7 @@ export function ChatRoom({
               onKeyDown={onKeyDown}
               onPaste={onPaste}
               rows={1}
-              disabled={sending}
+              disabled={sending || composerLocked}
               placeholder="พิมพ์ข้อความ…"
               className="max-h-40 min-h-[44px] min-w-[180px] flex-1 resize-none overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--inset)] px-4 py-3 text-[15px] leading-5 outline-none placeholder:text-[13px] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/40 disabled:opacity-60"
             />
@@ -1119,6 +1130,13 @@ export function ChatRoom({
             </button>
           </div>
         </form>
+        {cancelTarget && (
+          <CancelMessageModal
+            onClose={closeCancelModal}
+            onConfirm={() => void cancelMessage(cancelTarget.id)}
+            busy={cancellingIds.has(cancelTarget.id)}
+          />
+        )}
       </section>
       {selectedImage && (
         <ImageModal
@@ -1402,6 +1420,44 @@ function ImageModal({
   );
 }
 
+function CancelMessageModal({
+  onClose,
+  onConfirm,
+  busy,
+}: {
+  onClose: () => void;
+  onConfirm: () => void;
+  busy: boolean;
+}) {
+  return (
+    <div
+      className="absolute left-1/2 top-1/2 z-50 flex -translate-x-1/2 -translate-y-1/2 flex-col gap-2 rounded-xl border border-[var(--border)] bg-[var(--panel)]/95 p-2 shadow-[0_12px_36px_rgba(0,0,0,0.38)] backdrop-blur"
+      role="dialog"
+      aria-modal="true"
+      aria-label="ยืนยันยกเลิกข้อความ"
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        disabled={busy}
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-500 px-3 py-2 text-[12px] font-bold text-white transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <XIcon />
+        ปิด
+      </button>
+      <button
+        type="button"
+        onClick={onConfirm}
+        disabled={busy}
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-rose-500 px-3 py-2 text-[12px] font-bold text-white transition-colors hover:bg-rose-400 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <CheckIcon />
+        {busy ? "..." : "ยืนยัน"}
+      </button>
+    </div>
+  );
+}
+
 function AttachButton({
   onClick,
   disabled,
@@ -1585,6 +1641,23 @@ function XIcon() {
     >
       <path d="M18 6 6 18" />
       <path d="m6 6 12 12" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.4}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-3 w-3"
+      aria-hidden
+    >
+      <path d="M20 6 9 17l-5-5" />
     </svg>
   );
 }
