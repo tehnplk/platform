@@ -34,6 +34,7 @@ type Message = {
   role: ChatRole;
   body: string;
   created_at: string; // ISO
+  read_at: string | null;
   client_id?: string | null;
   attachments: Attachment[];
 };
@@ -57,11 +58,28 @@ type ServerMessage = {
 };
 
 const MAX_IMAGES = 2;
-const MAX_VIDEO_SECONDS = 20;
 const MAX_DOCS = 3;
 const MAX_DOC_BYTES = 5 * 1024 * 1024;
 const DOC_ACCEPT =
   ".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv";
+const EMOJI_OPTIONS = [
+  "😀",
+  "😄",
+  "😊",
+  "🙏",
+  "👍",
+  "❤️",
+  "🎉",
+  "✅",
+  "😂",
+  "🥰",
+  "👌",
+  "🙇",
+  "😮",
+  "😢",
+  "🔥",
+  "💬",
+];
 
 function formatBytes(n: number) {
   if (n < 1024) return `${n} B`;
@@ -138,12 +156,17 @@ function ensureAudio(): HTMLAudioElement | null {
 
 function playKnock() {
   const a = ensureAudio();
-  if (!a) return;
+  if (!a) return Promise.resolve(false);
   try {
     a.muted = false;
     a.currentTime = 0;
-    void a.play().catch(() => {});
-  } catch {}
+    return a.play().then(
+      () => true,
+      () => false,
+    );
+  } catch {
+    return Promise.resolve(false);
+  }
 }
 
 function unlockAudio({ audible }: { audible: boolean }) {
@@ -167,24 +190,6 @@ function unlockAudio({ audible }: { audible: boolean }) {
     });
 }
 
-function probeVideoDuration(file: File): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const v = document.createElement("video");
-    v.preload = "metadata";
-    v.src = url;
-    v.onloadedmetadata = () => {
-      const d = v.duration;
-      URL.revokeObjectURL(url);
-      resolve(d);
-    };
-    v.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("ไม่สามารถอ่านไฟล์วิดีโอได้"));
-    };
-  });
-}
-
 function attachmentSrc(att: Attachment) {
   return att.localUrl ?? `/api/chat/attachments/${att.id}`;
 }
@@ -195,6 +200,7 @@ function toMessage(s: ServerMessage): Message {
     role: s.role,
     body: s.body,
     created_at: s.created_at,
+    read_at: s.read_at,
     client_id: s.client_id,
     attachments: s.attachments.map((a) => ({
       id: a.id,
@@ -218,35 +224,36 @@ export function ChatRoom({
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
   const [images, setImages] = useState<Attachment[]>([]);
-  const [video, setVideo] = useState<Attachment | null>(null);
   const [docs, setDocs] = useState<Attachment[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [connected, setConnected] = useState(false);
   const [typingFrom, setTypingFrom] = useState<ChatRole | null>(null);
-  const [soundOn, setSoundOn] = useState(false);
+  const [soundOn, setSoundOn] = useState(true);
   const [selectedImage, setSelectedImage] = useState<Attachment | null>(null);
-  const soundOnRef = useRef(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const soundOnRef = useRef(true);
   const soundPreferenceLoadedRef = useRef(false);
+  const pendingSoundRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
     try {
       const v = localStorage.getItem("chat:soundOn");
-      const enabled = v === "1";
+      const enabled = v !== "0";
       soundOnRef.current = enabled;
-      if (enabled) {
-        window.requestAnimationFrame(() => {
-          if (!cancelled) {
-            soundPreferenceLoadedRef.current = true;
-            setSoundOn(true);
-          }
-        });
-      } else {
-        soundPreferenceLoadedRef.current = true;
-      }
+      window.requestAnimationFrame(() => {
+        if (!cancelled) {
+          soundPreferenceLoadedRef.current = true;
+          setSoundOn(enabled);
+        }
+      });
     } catch {
       soundPreferenceLoadedRef.current = true;
+      soundOnRef.current = true;
+      window.requestAnimationFrame(() => {
+        if (!cancelled) setSoundOn(true);
+      });
     }
     return () => {
       cancelled = true;
@@ -260,6 +267,20 @@ export function ChatRoom({
     } catch {}
   }, [soundOn]);
 
+  const triggerChatSound = useCallback(async () => {
+    if (!soundOnRef.current) return;
+    const played = await playKnock();
+    if (!played) {
+      pendingSoundRef.current = true;
+    }
+  }, []);
+
+  const triggerPendingChatSound = useCallback(() => {
+    if (!soundOnRef.current || !pendingSoundRef.current) return;
+    pendingSoundRef.current = false;
+    void unlockAudio({ audible: true }).catch(() => {});
+  }, []);
+
   // Browsers block .play() until a user gesture. If sound is already enabled
   // from localStorage, the first interaction must play audibly to unlock later
   // notification sounds reliably across browsers.
@@ -270,6 +291,7 @@ export function ChatRoom({
       unlockAudio({ audible: soundOnRef.current })
         .then(() => {
           unlocked = true;
+          pendingSoundRef.current = false;
           detach();
         })
         .catch(() => {});
@@ -288,6 +310,26 @@ export function ChatRoom({
     return detach;
   }, []);
 
+  useEffect(() => {
+    const trigger = () => triggerPendingChatSound();
+    const events: Array<keyof DocumentEventMap> = [
+      "pointerdown",
+      "click",
+      "keydown",
+      "touchstart",
+      "visibilitychange",
+    ];
+    const opts = { capture: true, passive: true } as const;
+    events.forEach((eventName) => document.addEventListener(eventName, trigger, opts));
+    window.addEventListener("focus", trigger);
+    return () => {
+      events.forEach((eventName) =>
+        document.removeEventListener(eventName, trigger, opts),
+      );
+      window.removeEventListener("focus", trigger);
+    };
+  }, [triggerPendingChatSound]);
+
   const channelRef = useRef<ReturnType<RealtimeClient["channel"]> | null>(null);
   const typingClearRef = useRef<number | null>(null);
   const typingBroadcastSentAtRef = useRef(0);
@@ -296,8 +338,26 @@ export function ChatRoom({
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
-  const videoInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
+
+  const markConversationRead = useCallback(async () => {
+    try {
+      const r = await fetch(
+        `/api/chat/conversations/${encodeURIComponent(hoscode)}/read?role=${role}`,
+        { method: "POST" },
+      );
+      if (!r.ok) return;
+      const j = (await r.json()) as { read_at?: string };
+      if (!j.read_at) return;
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.role !== role && !m.read_at ? { ...m, read_at: j.read_at ?? null } : m,
+        ),
+      );
+    } catch (err) {
+      console.error("mark conversation read failed", err);
+    }
+  }, [hoscode, role]);
 
   // Initial load
   useEffect(() => {
@@ -312,6 +372,7 @@ export function ChatRoom({
         const j = (await r.json()) as { messages: ServerMessage[] };
         if (cancelled) return;
         setMessages(j.messages.map(toMessage));
+        void markConversationRead();
       } catch (err) {
         console.error("load messages failed", err);
       }
@@ -319,7 +380,7 @@ export function ChatRoom({
     return () => {
       cancelled = true;
     };
-  }, [hoscode]);
+  }, [hoscode, markConversationRead]);
 
   // Realtime subscription
   useEffect(() => {
@@ -351,7 +412,8 @@ export function ChatRoom({
           // The sender just sent — they have stopped typing.
           if (senderRole && senderRole !== role) {
             setTypingFrom((cur) => (cur === senderRole ? null : cur));
-            if (soundOnRef.current) playKnock();
+            void triggerChatSound();
+            void markConversationRead();
           }
           try {
             const r = await fetch(
@@ -377,6 +439,20 @@ export function ChatRoom({
           } catch (err) {
             console.error("fetch new message failed", err);
           }
+        },
+      )
+      .on(
+        "broadcast",
+        { event: "read-receipt" },
+        (payload?: { payload?: { role?: ChatRole; read_at?: string } }) => {
+          const readerRole = payload?.payload?.role;
+          const readAt = payload?.payload?.read_at;
+          if (!readerRole || readerRole === role || !readAt) return;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.role !== readerRole && !m.read_at ? { ...m, read_at: readAt } : m,
+            ),
+          );
         },
       )
       .on(
@@ -409,13 +485,23 @@ export function ChatRoom({
       channel.unsubscribe();
       client.disconnect();
     };
-  }, [hoscode, role]);
+  }, [hoscode, markConversationRead, role, triggerChatSound]);
 
   // Auto-scroll on new messages OR when the other side starts typing
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages, typingFrom]);
+
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+
+    el.style.height = "44px";
+    const nextHeight = Math.min(el.scrollHeight, 160);
+    el.style.height = `${Math.max(44, nextHeight)}px`;
+    el.style.overflowY = el.scrollHeight > 160 ? "auto" : "hidden";
+  }, [draft]);
 
   // Keep the textarea focused: on mount, when new messages arrive, when the
   // window regains focus, and when the user clicks anywhere on the panel.
@@ -457,8 +543,10 @@ export function ChatRoom({
   function refocusOnPanelClick(e: React.MouseEvent<HTMLElement>) {
     const t = e.target as HTMLElement;
     if (t.closest("button, a, input, textarea, video, [contenteditable]")) {
+      triggerPendingChatSound();
       return;
     }
+    triggerPendingChatSound();
     inputRef.current?.focus();
   }
 
@@ -510,36 +598,6 @@ export function ChatRoom({
     setImages((prev) => [...prev, ...accepted]);
     if (files.length > remaining) {
       setError(`แนบรูปเพิ่มได้แค่ ${remaining} รูป (สูงสุด ${MAX_IMAGES})`);
-    }
-  }
-
-  async function pickVideo(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    setError(null);
-    if (video) {
-      setError("แนบคลิปได้แค่ 1 คลิป — ลบของเดิมก่อน");
-      return;
-    }
-    try {
-      const duration = await probeVideoDuration(file);
-      if (duration > MAX_VIDEO_SECONDS + 0.5) {
-        setError(
-          `คลิปยาว ${duration.toFixed(1)} วินาที — เกินจำกัด ${MAX_VIDEO_SECONDS} วินาที`,
-        );
-        return;
-      }
-      setVideo({
-        id: genId(),
-        kind: "video",
-        filename: file.name,
-        mime_type: file.type,
-        localUrl: URL.createObjectURL(file),
-        file,
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "ไม่สามารถอ่านไฟล์ได้");
     }
   }
 
@@ -600,7 +658,7 @@ export function ChatRoom({
     });
   }, [role]);
 
-  function notifyTyping(value: string) {
+  function notifyTyping(value: string, timestamp: number) {
     if (typingStopTimerRef.current) {
       window.clearTimeout(typingStopTimerRef.current);
       typingStopTimerRef.current = null;
@@ -611,11 +669,10 @@ export function ChatRoom({
       typingBroadcastSentAtRef.current = 0;
       return;
     }
-    const now = Date.now();
     // Throttle "start" to once per 1.5s
-    if (now - typingBroadcastSentAtRef.current > 1500) {
+    if (timestamp - typingBroadcastSentAtRef.current > 1500) {
       broadcastTyping("start");
-      typingBroadcastSentAtRef.current = now;
+      typingBroadcastSentAtRef.current = timestamp;
     }
     // Auto-stop after 2s of no typing
     typingStopTimerRef.current = window.setTimeout(() => {
@@ -625,18 +682,25 @@ export function ChatRoom({
     }, 2000);
   }
 
-  function removeVideo() {
-    if (video?.localUrl) URL.revokeObjectURL(video.localUrl);
-    setVideo(null);
+  function insertEmoji(emoji: string) {
+    const input = inputRef.current;
+    const start = input?.selectionStart ?? draft.length;
+    const end = input?.selectionEnd ?? draft.length;
+    const nextDraft = `${draft.slice(0, start)}${emoji}${draft.slice(end)}`;
+
+    setDraft(nextDraft);
+    notifyTyping(nextDraft, typingBroadcastSentAtRef.current + 1501);
+    setEmojiOpen(false);
+    window.requestAnimationFrame(() => {
+      input?.focus();
+      const nextCursor = start + emoji.length;
+      input?.setSelectionRange(nextCursor, nextCursor);
+    });
   }
 
   const send = useCallback(async () => {
     const trimmed = draft.trim();
-    const atts: Attachment[] = [
-      ...images,
-      ...(video ? [video] : []),
-      ...docs,
-    ];
+    const atts: Attachment[] = [...images, ...docs];
     if (!trimmed && atts.length === 0) return;
     if (sending) return;
 
@@ -647,6 +711,7 @@ export function ChatRoom({
       body: trimmed,
       client_id: clientId,
       created_at: new Date().toISOString(),
+      read_at: null,
       attachments: atts.map((a) => ({
         id: a.id,
         kind: a.kind,
@@ -677,7 +742,6 @@ export function ChatRoom({
     setSending(true);
     setDraft("");
     setImages([]);
-    setVideo(null);
     setDocs([]);
     setError(null);
     inputRef.current?.focus();
@@ -705,7 +769,7 @@ export function ChatRoom({
       setSending(false);
       requestAnimationFrame(() => inputRef.current?.focus());
     }
-  }, [broadcastTyping, draft, images, video, docs, hoscode, role, sending]);
+  }, [broadcastTyping, draft, images, docs, hoscode, role, sending]);
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -738,7 +802,7 @@ export function ChatRoom({
     const end = target.selectionEnd;
     const nextDraft = draft.slice(0, start) + pastedText + draft.slice(end);
     setDraft(nextDraft);
-    notifyTyping(nextDraft);
+    notifyTyping(nextDraft, e.timeStamp);
     requestAnimationFrame(() => {
       const cursorPos = start + pastedText.length;
       target.setSelectionRange(cursorPos, cursorPos);
@@ -749,11 +813,9 @@ export function ChatRoom({
   const canSend =
     (draft.trim().length > 0 ||
       images.length > 0 ||
-      !!video ||
       docs.length > 0) &&
     !sending;
   const imagesFull = images.length >= MAX_IMAGES;
-  const videoFull = !!video;
   const docsFull = docs.length >= MAX_DOCS;
 
   const headerTitle = role === "admin" ? "หน่วยบริการ" : "Admin Team";
@@ -806,6 +868,8 @@ export function ChatRoom({
                 soundPreferenceLoadedRef.current = true;
                 if (next) {
                   void unlockAudio({ audible: true }).catch(() => {});
+                } else {
+                  pendingSoundRef.current = false;
                 }
                 return next;
               });
@@ -866,7 +930,7 @@ export function ChatRoom({
           onSubmit={onSubmit}
           className="flex flex-col gap-2 border-t border-[var(--border)] bg-[var(--inset)]/40 px-4 py-3"
         >
-          {(images.length > 0 || video || docs.length > 0 || error) && (
+          {(images.length > 0 || docs.length > 0 || error) && (
             <div className="flex flex-wrap items-center gap-2 px-1">
               {images.map((img) => (
                 <PreviewChip
@@ -875,9 +939,6 @@ export function ChatRoom({
                   onRemove={() => removeImage(img.id)}
                 />
               ))}
-              {video && (
-                <PreviewChip attachment={video} onRemove={removeVideo} />
-              )}
               {docs.map((d) => (
                 <PreviewChip
                   key={d.id}
@@ -903,13 +964,6 @@ export function ChatRoom({
               onChange={pickImages}
             />
             <input
-              ref={videoInputRef}
-              type="file"
-              accept="video/*"
-              hidden
-              onChange={pickVideo}
-            />
-            <input
               ref={docInputRef}
               type="file"
               accept={DOC_ACCEPT}
@@ -930,17 +984,6 @@ export function ChatRoom({
               badge={images.length > 0 ? `${images.length}/${MAX_IMAGES}` : null}
             />
             <AttachButton
-              onClick={() => videoInputRef.current?.click()}
-              disabled={videoFull || sending}
-              title={
-                videoFull
-                  ? "แนบคลิปแล้ว"
-                  : `แนบคลิป (สูงสุด ${MAX_VIDEO_SECONDS} วินาที)`
-              }
-              icon={<VideoIcon />}
-              badge={video ? "1/1" : null}
-            />
-            <AttachButton
               onClick={() => docInputRef.current?.click()}
               disabled={docsFull || sending}
               title={
@@ -951,27 +994,51 @@ export function ChatRoom({
               icon={<DocIcon />}
               badge={docs.length > 0 ? `${docs.length}/${MAX_DOCS}` : null}
             />
+            <div className="relative shrink-0">
+              <AttachButton
+                onClick={() => setEmojiOpen((open) => !open)}
+                disabled={sending}
+                title="เลือก emoji"
+                icon={<SmileIcon />}
+                badge={null}
+              />
+              {emojiOpen && (
+                <div className="absolute bottom-full left-0 z-20 mb-2 grid w-[184px] grid-cols-4 gap-1 rounded-xl border border-[var(--border)] bg-[var(--panel)] p-2 shadow-[0_12px_36px_rgba(0,0,0,0.35)]">
+                  {EMOJI_OPTIONS.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => insertEmoji(emoji)}
+                      className="flex h-9 w-9 items-center justify-center rounded-lg text-[20px] transition-colors hover:bg-[var(--inset)]"
+                      aria-label={`เลือก ${emoji}`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <textarea
               ref={inputRef}
               value={draft}
               onChange={(e) => {
                 setDraft(e.target.value);
-                notifyTyping(e.target.value);
+                notifyTyping(e.target.value, e.timeStamp);
               }}
               onBlur={() => broadcastTyping("stop")}
               onKeyDown={onKeyDown}
               onPaste={onPaste}
               rows={1}
               disabled={sending}
-              placeholder="พิมพ์ข้อความ… (Shift+Enter ขึ้นบรรทัดใหม่)"
-              className="max-h-40 min-h-[44px] flex-1 resize-none rounded-xl border border-[var(--border)] bg-[var(--inset)] px-4 py-3 text-[15px] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/40 disabled:opacity-60"
+              placeholder="พิมพ์ข้อความ…"
+              className="max-h-40 min-h-[44px] min-w-[180px] flex-1 resize-none overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--inset)] px-4 py-3 text-[15px] leading-5 outline-none placeholder:text-[13px] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/40 disabled:opacity-60"
             />
 
             <button
               type="submit"
               disabled={!canSend}
-              className="inline-flex h-11 items-center gap-2 rounded-xl bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] px-5 font-bold text-[#00212f] shadow-[0_6px_18px_rgba(14,165,233,0.35)] transition-[transform,opacity] hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none disabled:hover:translate-y-0"
+              className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] px-5 font-bold text-[#00212f] shadow-[0_6px_18px_rgba(14,165,233,0.35)] transition-[transform,opacity] hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none disabled:hover:translate-y-0 max-[640px]:w-11 max-[640px]:gap-0 max-[640px]:px-0 max-[640px]:text-[0px]"
               aria-label="ส่งข้อความ"
             >
               <SendIcon />
@@ -1127,8 +1194,11 @@ function Bubble({
             <span className="whitespace-pre-wrap break-words">{msg.body}</span>
           </div>
         )}
-        <span className="px-1 text-[11px] text-[var(--muted)]">
+        <span className="px-1 text-[10px] text-[var(--muted)] opacity-70">
           {formatTime(msg.created_at)}
+          {mine && msg.read_at ? (
+            <span className="ml-1">อ่านแล้ว</span>
+          ) : null}
         </span>
       </div>
     </div>
@@ -1347,24 +1417,6 @@ function ImageIcon() {
   );
 }
 
-function VideoIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="h-5 w-5"
-      aria-hidden
-    >
-      <path d="m22 8-6 4 6 4V8Z" />
-      <rect width="14" height="12" x="2" y="6" rx="2" ry="2" />
-    </svg>
-  );
-}
-
 function DocIcon() {
   return (
     <svg
@@ -1431,6 +1483,26 @@ function XIcon() {
     >
       <path d="M18 6 6 18" />
       <path d="m6 6 12 12" />
+    </svg>
+  );
+}
+
+function SmileIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-5 w-5"
+      aria-hidden
+    >
+      <circle cx="12" cy="12" r="10" />
+      <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+      <path d="M9 9h.01" />
+      <path d="M15 9h.01" />
     </svg>
   );
 }

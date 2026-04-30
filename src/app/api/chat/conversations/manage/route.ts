@@ -16,7 +16,9 @@ export async function GET() {
             coalesce(c.last_message_at, max(m.created_at)) as last_chat_date_time,
             count(m.id)::int as count_message
        from conversations c
-       left join messages m on m.hoscode = c.hoscode
+       left join messages m
+         on m.hoscode = c.hoscode
+        and m.created_at >= now() - interval '15 days'
       group by c.hoscode, c.last_message_at
       order by last_chat_date_time desc nulls last, c.hoscode asc`,
   );

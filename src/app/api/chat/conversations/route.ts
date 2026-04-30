@@ -26,11 +26,12 @@ export async function GET() {
          select body, role
            from messages
           where hoscode = c.hoscode
+            and created_at >= now() - interval '15 days'
           order by created_at desc
           limit 1
        ) m on true
-      where c.hidden_at is null
-         or c.last_message_at > c.hidden_at
+      where c.last_message_at is null
+         or c.last_message_at >= now() - interval '15 days'
       order by c.last_message_at desc nulls last`,
   );
   return NextResponse.json({ conversations: r.rows });

@@ -35,6 +35,63 @@ type AdminMessagePayload = {
   };
 };
 
+const LOCAL_HIDDEN_CONVERSATIONS_KEY = "chat:hiddenConversations";
+
+type LocalHiddenConversations = Record<string, string>;
+
+function readLocalHiddenConversations(): LocalHiddenConversations {
+  try {
+    const raw = localStorage.getItem(LOCAL_HIDDEN_CONVERSATIONS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+
+    return Object.fromEntries(
+      Object.entries(parsed).filter(
+        (entry): entry is [string, string] =>
+          typeof entry[0] === "string" && typeof entry[1] === "string",
+      ),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function writeLocalHiddenConversations(hidden: LocalHiddenConversations) {
+  try {
+    localStorage.setItem(LOCAL_HIDDEN_CONVERSATIONS_KEY, JSON.stringify(hidden));
+  } catch {}
+}
+
+function removeLocalHiddenConversation(hoscode: string) {
+  const hidden = readLocalHiddenConversations();
+  if (!(hoscode in hidden)) return;
+  delete hidden[hoscode];
+  writeLocalHiddenConversations(hidden);
+}
+
+function hideConversationLocally(hoscode: string) {
+  writeLocalHiddenConversations({
+    ...readLocalHiddenConversations(),
+    [hoscode]: new Date().toISOString(),
+  });
+}
+
+function isConversationLocallyHidden(
+  conversation: Conversation,
+  hidden: LocalHiddenConversations,
+) {
+  const hiddenAt = hidden[conversation.hoscode];
+  if (!hiddenAt) return false;
+  if (!conversation.last_message_at) return true;
+
+  const hiddenTime = Date.parse(hiddenAt);
+  const lastMessageTime = Date.parse(conversation.last_message_at);
+  if (Number.isNaN(hiddenTime) || Number.isNaN(lastMessageTime)) return true;
+
+  return lastMessageTime <= hiddenTime;
+}
+
 function supportsBrowserNotification() {
   return typeof window !== "undefined" && "Notification" in window;
 }
@@ -99,7 +156,7 @@ function AdminChat() {
   useEffect(() => {
     let cancelled = false;
     try {
-      const v = localStorage.getItem("chat:sidebarOpen");
+      const v = sessionStorage.getItem("chat:sidebarOpen");
       if (v === "0") {
         window.requestAnimationFrame(() => {
           if (!cancelled) setSidebarOpen(false);
@@ -112,7 +169,7 @@ function AdminChat() {
   }, []);
   useEffect(() => {
     try {
-      localStorage.setItem("chat:sidebarOpen", sidebarOpen ? "1" : "0");
+      sessionStorage.setItem("chat:sidebarOpen", sidebarOpen ? "1" : "0");
     } catch {}
   }, [sidebarOpen]);
 
@@ -223,15 +280,19 @@ function AdminChat() {
       if (!r.ok) return;
       const j = (await r.json()) as { conversations: Conversation[] };
       const sel = params.get("hoscode")?.trim() || null;
+      const hidden = readLocalHiddenConversations();
+      const visibleConversations = j.conversations.filter(
+        (conversation) => !isConversationLocallyHidden(conversation, hidden),
+      );
       const nextList = sel
-        ? j.conversations.map((c) =>
+        ? visibleConversations.map((c) =>
             c.hoscode === sel ? { ...c, admin_unread: 0 } : c,
           )
-        : j.conversations;
+        : visibleConversations;
       notifyNewUnreadMessages(nextList);
       previousListRef.current = nextList;
       setList(nextList);
-      if (sel && j.conversations.some((c) => c.hoscode === sel && c.admin_unread > 0)) {
+      if (sel && visibleConversations.some((c) => c.hoscode === sel && c.admin_unread > 0)) {
         void fetch(
           `/api/chat/conversations/${encodeURIComponent(sel)}/read?role=admin`,
           { method: "POST" },
@@ -303,15 +364,8 @@ function AdminChat() {
         );
       });
     });
-    void (async () => {
-      await fetch(
-        `/api/chat/conversations/${encodeURIComponent(selected)}/unhide`,
-        { method: "POST" },
-      );
-      if (!cancelled) {
-        await load();
-      }
-    })();
+    removeLocalHiddenConversation(selected);
+    void load();
     return () => {
       cancelled = true;
     };
@@ -325,23 +379,17 @@ function AdminChat() {
     const h = query.trim();
     if (!h) return;
     setQuery("");
-    await fetch(
-      `/api/chat/conversations/${encodeURIComponent(h)}/unhide`,
-      { method: "POST" },
-    );
+    removeLocalHiddenConversation(h);
     router.replace(`/chat/admin?hoscode=${encodeURIComponent(h)}`);
     void load();
   }
 
-  async function hideHoscode(h: string) {
+  function hideHoscode(h: string) {
+    hideConversationLocally(h);
     setList((prev) => prev.filter((c) => c.hoscode !== h));
     if (selected === h) {
       router.replace("/chat/admin");
     }
-    await fetch(
-      `/api/chat/conversations/${encodeURIComponent(h)}/hide`,
-      { method: "POST" },
-    );
   }
 
   useTitle(selected ?? "Admin Chat Console");
@@ -440,7 +488,7 @@ function AdminChat() {
                         {c.hoscode.slice(-2)}
                       </div>
                       {c.admin_unread > 0 && (
-                        <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent)] px-1 text-[11px] font-bold text-[#00212f] ring-2 ring-[var(--inset)]">
+                        <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-200 px-1 text-[11px] font-bold text-emerald-950 ring-2 ring-[var(--inset)]">
                           {c.admin_unread}
                         </span>
                       )}
@@ -476,7 +524,7 @@ function AdminChat() {
                           {preview}
                         </span>
                         {c.admin_unread > 0 && (
-                          <span className="ml-2 inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] px-1.5 text-[11px] font-bold text-[#00212f]">
+                          <span className="ml-2 inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-emerald-200 px-1.5 text-[11px] font-bold text-emerald-950">
                             {c.admin_unread}
                           </span>
                         )}

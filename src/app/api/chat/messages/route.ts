@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
     `select id, hoscode, role, body, client_id, created_at, read_at
        from messages
       where hoscode = $1
+        and created_at >= now() - interval '15 days'
       order by created_at asc
       limit $2`,
     [hoscode, limit],
@@ -101,6 +102,12 @@ export async function POST(req: NextRequest) {
   const client = await db.connect();
   try {
     await client.query("begin");
+    await client.query(
+      `delete from messages
+        where hoscode = $1
+          and created_at < now() - interval '15 days'`,
+      [hoscode],
+    );
 
     // Ensure conversation exists (trigger handles this on insert too,
     // but inserting with FK requires the parent row first)

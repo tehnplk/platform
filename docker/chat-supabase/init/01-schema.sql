@@ -84,14 +84,14 @@ create trigger messages_bump_conversation
   after insert on messages
   for each row execute function bump_conversation();
 
--- Retention: keep only last 7 days of messages per hoscode.
+-- Retention: keep only last 15 days of messages per hoscode.
 -- Triggered on each insert (amortized cleanup; cascades to attachments).
 create or replace function purge_old_messages() returns trigger
   language plpgsql as $$
 begin
   delete from messages
    where hoscode = new.hoscode
-     and created_at < now() - interval '7 days';
+     and created_at < now() - interval '15 days';
   return new;
 end;
 $$;

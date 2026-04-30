@@ -46,3 +46,34 @@ export async function broadcastNewMessage(
     console.warn("broadcast threw", err);
   }
 }
+
+export async function broadcastReadReceipt(
+  hoscode: string,
+  payload: { role: "user" | "admin"; read_at: string },
+) {
+  try {
+    const res = await fetch(`${REALTIME_HTTP_URL}/api/broadcast`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: REALTIME_API_KEY,
+        Authorization: `Bearer ${REALTIME_API_KEY}`,
+      },
+      body: JSON.stringify({
+        messages: [
+          {
+            topic: `chat:${hoscode}`,
+            event: "read-receipt",
+            payload,
+            private: false,
+          },
+        ],
+      }),
+    });
+    if (!res.ok) {
+      console.warn("read receipt broadcast failed", res.status, await res.text());
+    }
+  } catch (err) {
+    console.warn("read receipt broadcast threw", err);
+  }
+}
