@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { broadcastNewMessage } from "@/lib/realtime-broadcast";
+import { sendAdminPushNotifications } from "@/lib/web-push";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -144,6 +145,14 @@ export async function POST(req: NextRequest) {
       client_id: msg.client_id,
       role: msg.role,
     });
+    if (msg.role === "user") {
+      void sendAdminPushNotifications({
+        title: `หน่วยบริการ ${hoscode}`,
+        body: msg.body.trim() || "มีข้อความใหม่เข้ามา",
+        url: `/chat/admin?hoscode=${encodeURIComponent(hoscode)}`,
+        tag: `chat-admin-${hoscode}`,
+      });
+    }
 
     return NextResponse.json({
       message: { ...msg, attachments: attachmentResults },

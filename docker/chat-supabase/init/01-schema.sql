@@ -46,6 +46,16 @@ create table if not exists attachments (
 create index if not exists attachments_message_id_idx
   on attachments (message_id);
 
+create table if not exists push_subscriptions (
+  endpoint       text primary key,
+  role           text not null check (role in ('admin')),
+  subscription   jsonb not null,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+create index if not exists push_subscriptions_role_idx
+  on push_subscriptions (role);
+
 -- Auto-create conversation row + bump last_message_at + unread on insert
 create or replace function bump_conversation() returns trigger
   language plpgsql as $$

@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { RealtimeClient } from "@supabase/realtime-js";
 import { ChatRoom } from "@/components/ChatRoom";
+import { REALTIME_ANON_KEY, REALTIME_URL } from "@/lib/realtime-config";
 
 function useTitle(value: string) {
   useEffect(() => {
@@ -24,6 +26,36 @@ type Conversation = {
   last_body: string | null;
   last_role: "user" | "admin" | null;
 };
+
+type AdminMessagePayload = {
+  payload?: {
+    id?: string;
+    hoscode?: string;
+    role?: "user" | "admin";
+  };
+};
+
+function supportsBrowserNotification() {
+  return typeof window !== "undefined" && "Notification" in window;
+}
+
+function browserCanNotify() {
+  if (typeof document === "undefined") return false;
+  return document.visibilityState !== "visible" || !document.hasFocus();
+}
+
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding)
+    .replace(/-/g, "+")
+    .replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i += 1) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
 
 export default function AdminChatPage() {
   return (
@@ -57,6 +89,12 @@ function AdminChat() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const previousListRef = useRef<Conversation[] | null>(null);
+  const selectedRef = useRef<string | null>(selected);
+
+  useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,6 +116,106 @@ function AdminChat() {
     } catch {}
   }, [sidebarOpen]);
 
+  const registerAdminPush = useCallback(async () => {
+    if (!supportsBrowserNotification()) return;
+    if (Notification.permission !== "granted") return;
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+
+    try {
+      const keyRes = await fetch("/api/chat/push-subscriptions", {
+        cache: "no-store",
+      });
+      if (!keyRes.ok) return;
+      const { publicKey } = (await keyRes.json()) as { publicKey?: string };
+      if (!publicKey) return;
+
+      await navigator.serviceWorker.register("/service-worker.js");
+      const readyRegistration = await navigator.serviceWorker.ready;
+      const existingSubscription =
+        await readyRegistration.pushManager.getSubscription();
+      const subscription =
+        existingSubscription ??
+        (await readyRegistration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey),
+        }));
+
+      await fetch("/api/chat/push-subscriptions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(subscription),
+      });
+    } catch (err) {
+      console.warn("register admin push failed", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    void registerAdminPush();
+  }, [registerAdminPush]);
+
+  useEffect(() => {
+    if (!supportsBrowserNotification()) return;
+    if (Notification.permission !== "default") return;
+
+    let cancelled = false;
+    const requestPermission = async () => {
+      if (cancelled || Notification.permission !== "default") return;
+      const permission = await Notification.requestPermission().catch(() => null);
+      if (!cancelled && permission === "granted") {
+        await registerAdminPush();
+      }
+    };
+    const events: Array<keyof WindowEventMap> = ["click", "keydown", "pointerdown"];
+    const opts: AddEventListenerOptions = { passive: true };
+    events.forEach((eventName) => {
+      window.addEventListener(eventName, requestPermission, opts);
+    });
+    return () => {
+      cancelled = true;
+      events.forEach((eventName) => {
+        window.removeEventListener(eventName, requestPermission);
+      });
+    };
+  }, [registerAdminPush]);
+
+  const notifyNewUnreadMessages = useCallback(
+    (nextList: Conversation[]) => {
+      if (!supportsBrowserNotification()) return;
+      if (Notification.permission !== "granted") return;
+      if (!browserCanNotify()) return;
+
+      const previousList = previousListRef.current;
+      if (!previousList) return;
+
+      const previousMap = new Map(previousList.map((item) => [item.hoscode, item]));
+      for (const item of nextList) {
+        const prev = previousMap.get(item.hoscode);
+        const previousUnread = prev?.admin_unread ?? 0;
+        const unreadIncreased = item.admin_unread > previousUnread;
+        const fromUser = item.last_role === "user";
+        const activeThread = selectedRef.current === item.hoscode;
+        if (!unreadIncreased || !fromUser || activeThread) continue;
+
+        const notification = new Notification(
+          item.display_name ?? `หน่วยบริการ ${item.hoscode}`,
+          {
+            body: item.last_body?.trim() || "มีข้อความใหม่เข้ามา",
+            tag: `chat-admin-${item.hoscode}`,
+            icon: "/favicon.ico",
+          },
+        );
+        notification.onclick = () => {
+          window.focus();
+          router.replace(`/chat/admin?hoscode=${encodeURIComponent(item.hoscode)}`);
+          notification.close();
+        };
+        window.setTimeout(() => notification.close(), 10000);
+      }
+    },
+    [router],
+  );
+
 
   const load = useCallback(async () => {
     try {
@@ -85,13 +223,14 @@ function AdminChat() {
       if (!r.ok) return;
       const j = (await r.json()) as { conversations: Conversation[] };
       const sel = params.get("hoscode")?.trim() || null;
-      setList(
-        sel
-          ? j.conversations.map((c) =>
-              c.hoscode === sel ? { ...c, admin_unread: 0 } : c,
-            )
-          : j.conversations,
-      );
+      const nextList = sel
+        ? j.conversations.map((c) =>
+            c.hoscode === sel ? { ...c, admin_unread: 0 } : c,
+          )
+        : j.conversations;
+      notifyNewUnreadMessages(nextList);
+      previousListRef.current = nextList;
+      setList(nextList);
       if (sel && j.conversations.some((c) => c.hoscode === sel && c.admin_unread > 0)) {
         void fetch(
           `/api/chat/conversations/${encodeURIComponent(sel)}/read?role=admin`,
@@ -101,12 +240,42 @@ function AdminChat() {
     } finally {
       setLoading(false);
     }
-  }, [params]);
+  }, [notifyNewUnreadMessages, params]);
 
   useEffect(() => {
     void load();
     const t = setInterval(load, 5000);
     return () => clearInterval(t);
+  }, [load]);
+
+  useEffect(() => {
+    const client = new RealtimeClient(REALTIME_URL, {
+      params: { apikey: REALTIME_ANON_KEY },
+    });
+    client.connect();
+
+    const channel = client.channel("chat:admin", {
+      config: { broadcast: { self: false, ack: false } },
+    });
+
+    channel
+      .on(
+        "broadcast",
+        { event: "new-message" },
+        (payload?: AdminMessagePayload) => {
+          const message = payload?.payload;
+          if (!message?.id || !message.hoscode || message.role !== "user") {
+            return;
+          }
+          void load();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+      client.disconnect();
+    };
   }, [load]);
 
   useEffect(() => {

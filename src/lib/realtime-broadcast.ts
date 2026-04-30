@@ -30,6 +30,12 @@ export async function broadcastNewMessage(
             payload,
             private: false,
           },
+          {
+            topic: "chat:admin",
+            event: "new-message",
+            payload: { ...payload, hoscode },
+            private: false,
+          },
         ],
       }),
     });
