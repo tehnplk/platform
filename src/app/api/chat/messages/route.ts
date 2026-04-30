@@ -23,6 +23,7 @@ type MessageRow = {
   client_id: string | null;
   created_at: string;
   read_at: string | null;
+  cancelled_at: string | null;
 };
 
 export async function GET(req: NextRequest) {
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest) {
   );
 
   const msgs = await db.query<MessageRow>(
-    `select id, hoscode, role, body, client_id, created_at, read_at
+    `select id, hoscode, role, body, client_id, created_at, read_at, cancelled_at
        from messages
       where hoscode = $1
         and created_at >= now() - interval '15 days'
@@ -120,7 +121,7 @@ export async function POST(req: NextRequest) {
     const msgRes = await client.query<MessageRow>(
       `insert into messages (hoscode, role, body, client_id)
        values ($1, $2, $3, $4)
-       returning id, hoscode, role, body, client_id, created_at, read_at`,
+       returning id, hoscode, role, body, client_id, created_at, read_at, cancelled_at`,
       [hoscode, role, body, typeof clientId === "string" ? clientId : null],
     );
     const msg = msgRes.rows[0];

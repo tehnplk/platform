@@ -27,8 +27,10 @@ create table if not exists messages (
   body        text not null default '',
   client_id   text,
   created_at  timestamptz not null default now(),
-  read_at     timestamptz
+  read_at     timestamptz,
+  cancelled_at timestamptz
 );
+alter table messages add column if not exists cancelled_at timestamptz;
 create index if not exists messages_hoscode_created_at_idx
   on messages (hoscode, created_at desc);
 

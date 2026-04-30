@@ -35,6 +35,7 @@ type Message = {
   body: string;
   created_at: string; // ISO
   read_at: string | null;
+  cancelled_at: string | null;
   client_id?: string | null;
   attachments: Attachment[];
 };
@@ -47,6 +48,7 @@ type ServerMessage = {
   client_id: string | null;
   created_at: string;
   read_at: string | null;
+  cancelled_at: string | null;
   attachments: Array<{
     id: string;
     kind: "image" | "video" | "doc";
@@ -60,6 +62,7 @@ type ServerMessage = {
 const MAX_IMAGES = 2;
 const MAX_DOCS = 3;
 const MAX_DOC_BYTES = 5 * 1024 * 1024;
+const CANCELLED_MESSAGE_BODY = "ยกเลิกข้อความ";
 const DOC_ACCEPT =
   ".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/csv";
 const EMOJI_OPTIONS = [
@@ -201,6 +204,7 @@ function toMessage(s: ServerMessage): Message {
     body: s.body,
     created_at: s.created_at,
     read_at: s.read_at,
+    cancelled_at: s.cancelled_at,
     client_id: s.client_id,
     attachments: s.attachments.map((a) => ({
       id: a.id,
@@ -232,6 +236,9 @@ export function ChatRoom({
   const [soundOn, setSoundOn] = useState(true);
   const [selectedImage, setSelectedImage] = useState<Attachment | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [cancellingIds, setCancellingIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const soundOnRef = useRef(true);
   const soundPreferenceLoadedRef = useRef(false);
   const pendingSoundRef = useRef(false);
@@ -451,6 +458,33 @@ export function ChatRoom({
           setMessages((prev) =>
             prev.map((m) =>
               m.role !== readerRole && !m.read_at ? { ...m, read_at: readAt } : m,
+            ),
+          );
+        },
+      )
+      .on(
+        "broadcast",
+        { event: "cancel-message" },
+        (payload?: {
+          payload?: {
+            id?: string;
+            body?: string;
+            cancelled_at?: string;
+          };
+        }) => {
+          const id = payload?.payload?.id;
+          const cancelledAt = payload?.payload?.cancelled_at;
+          if (!id || !cancelledAt) return;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === id
+                ? {
+                    ...m,
+                    body: payload?.payload?.body ?? CANCELLED_MESSAGE_BODY,
+                    cancelled_at: cancelledAt,
+                    attachments: [],
+                  }
+                : m,
             ),
           );
         },
@@ -698,6 +732,39 @@ export function ChatRoom({
     });
   }
 
+  const cancelMessage = useCallback(
+    async (messageId: string) => {
+      setCancellingIds((prev) => new Set(prev).add(messageId));
+      setError(null);
+      try {
+        const r = await fetch(
+          `/api/chat/messages/${encodeURIComponent(messageId)}/cancel`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ hoscode, role }),
+          },
+        );
+        if (!r.ok) {
+          throw new Error("ยกเลิกข้อความไม่สำเร็จ");
+        }
+        const j = (await r.json()) as { message: ServerMessage };
+        setMessages((prev) =>
+          prev.map((m) => (m.id === messageId ? toMessage(j.message) : m)),
+        );
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "ยกเลิกข้อความไม่สำเร็จ");
+      } finally {
+        setCancellingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(messageId);
+          return next;
+        });
+      }
+    },
+    [hoscode, role],
+  );
+
   const send = useCallback(async () => {
     const trimmed = draft.trim();
     const atts: Attachment[] = [...images, ...docs];
@@ -712,6 +779,7 @@ export function ChatRoom({
       client_id: clientId,
       created_at: new Date().toISOString(),
       read_at: null,
+      cancelled_at: null,
       attachments: atts.map((a) => ({
         id: a.id,
         kind: a.kind,
@@ -817,7 +885,6 @@ export function ChatRoom({
     !sending;
   const imagesFull = images.length >= MAX_IMAGES;
   const docsFull = docs.length >= MAX_DOCS;
-
   const headerTitle = role === "admin" ? "หน่วยบริการ" : "Admin Team";
   const headerSub =
     role === "admin"
@@ -907,6 +974,12 @@ export function ChatRoom({
                 <Bubble
                   msg={m}
                   mine={mine}
+                  canCancel={
+                    mine &&
+                    !m.cancelled_at
+                  }
+                  cancelling={cancellingIds.has(m.id)}
+                  onCancel={() => void cancelMessage(m.id)}
                   showAvatar={showAvatar}
                   adminInitial={adminInitial}
                   viewerRole={role}
@@ -1060,6 +1133,9 @@ export function ChatRoom({
 function Bubble({
   msg,
   mine,
+  canCancel,
+  cancelling,
+  onCancel,
   showAvatar,
   adminInitial,
   viewerRole,
@@ -1068,17 +1144,27 @@ function Bubble({
 }: {
   msg: Message;
   mine: boolean;
+  canCancel: boolean;
+  cancelling: boolean;
+  onCancel: () => void;
   showAvatar: boolean;
   adminInitial: string;
   viewerRole: ChatRole;
   hoscode: string;
   onImageOpen: (image: Attachment) => void;
 }) {
+  const cancelled = !!msg.cancelled_at;
   const hasText = msg.body.length > 0;
-  const hasAttachments = msg.attachments.length > 0;
-  const imageAtts = msg.attachments.filter((a) => a.kind === "image");
-  const videoAtt = msg.attachments.find((a) => a.kind === "video");
-  const docAtts = msg.attachments.filter((a) => a.kind === "doc");
+  const hasAttachments = !cancelled && msg.attachments.length > 0;
+  const imageAtts = cancelled
+    ? []
+    : msg.attachments.filter((a) => a.kind === "image");
+  const videoAtt = cancelled
+    ? null
+    : msg.attachments.find((a) => a.kind === "video");
+  const docAtts = cancelled
+    ? []
+    : msg.attachments.filter((a) => a.kind === "doc");
 
   return (
     <div
@@ -1106,10 +1192,22 @@ function Bubble({
       </div>
 
       <div
-        className={`flex max-w-[78%] flex-col gap-1 ${
+        className={`group relative flex max-w-[78%] flex-col gap-1 ${
           mine ? "items-end" : "items-start"
         }`}
       >
+        {canCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={cancelling}
+            className="absolute right-full top-1/2 z-10 mr-2 -translate-y-1/2 rounded-full border border-rose-300/30 bg-[var(--panel)]/80 px-2 py-1 text-[10px] font-medium text-rose-200/70 opacity-0 shadow-sm transition-opacity hover:text-rose-100 group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-40"
+            aria-label="ยกเลิกข้อความ"
+            title="ยกเลิกข้อความ"
+          >
+            {cancelling ? "..." : "ยกเลิก"}
+          </button>
+        )}
         {hasAttachments && (
           <div
             className={`flex flex-col gap-2 ${
@@ -1184,14 +1282,18 @@ function Bubble({
         )}
 
         {hasText && (
-          <div
-            className={
-              mine
-                ? "rounded-2xl rounded-br-md bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] px-4 py-2.5 text-[15px] leading-[1.5] text-[#00212f] shadow-[0_4px_14px_rgba(14,165,233,0.25)]"
-                : "rounded-2xl rounded-bl-md border border-[var(--border)] bg-[var(--inset)] px-4 py-2.5 text-[15px] leading-[1.5] text-[var(--text)]"
-            }
-          >
-            <span className="whitespace-pre-wrap break-words">{msg.body}</span>
+          <div className="relative">
+            <div
+              className={
+                cancelled
+                  ? "rounded-2xl border border-[var(--border)]/60 bg-[var(--inset)]/45 px-4 py-2.5 text-[14px] italic leading-[1.5] text-[var(--muted)] opacity-70"
+                  : mine
+                    ? "rounded-2xl rounded-br-md bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] px-4 py-2.5 text-[15px] leading-[1.5] text-[#00212f] shadow-[0_4px_14px_rgba(14,165,233,0.25)]"
+                    : "rounded-2xl rounded-bl-md border border-[var(--border)] bg-[var(--inset)] px-4 py-2.5 text-[15px] leading-[1.5] text-[var(--text)]"
+              }
+            >
+              <span className="whitespace-pre-wrap break-words">{msg.body}</span>
+            </div>
           </div>
         )}
         <span className="px-1 text-[10px] text-[var(--muted)] opacity-70">
