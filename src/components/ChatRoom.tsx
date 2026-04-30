@@ -59,8 +59,8 @@ type ServerMessage = {
   }>;
 };
 
-const MAX_IMAGES = 2;
-const MAX_DOCS = 3;
+const MAX_IMAGES = 1;
+const MAX_DOCS = 1;
 const MAX_DOC_BYTES = 5 * 1024 * 1024;
 const CANCELLED_MESSAGE_BODY = "ยกเลิกข้อความ";
 const DOC_ACCEPT =
@@ -586,6 +586,10 @@ export function ChatRoom({
   }
 
   function addImageFiles(files: File[]) {
+    if (docs.length > 0) {
+      setError("ส่งรูปและไฟล์ในข้อความเดียวกันไม่ได้");
+      return false;
+    }
     const imageFiles = files.filter((f) => f.type.startsWith("image/"));
     if (!imageFiles.length) return false;
 
@@ -617,6 +621,10 @@ export function ChatRoom({
     e.target.value = "";
     if (!files.length) return;
     setError(null);
+    if (docs.length > 0) {
+      setError("ส่งรูปและไฟล์ในข้อความเดียวกันไม่ได้");
+      return;
+    }
     const remaining = MAX_IMAGES - images.length;
     if (remaining <= 0) {
       setError(`แนบรูปได้สูงสุด ${MAX_IMAGES} รูป`);
@@ -641,6 +649,10 @@ export function ChatRoom({
     e.target.value = "";
     if (!files.length) return;
     setError(null);
+    if (images.length > 0) {
+      setError("ส่งรูปและไฟล์ในข้อความเดียวกันไม่ได้");
+      return;
+    }
     const remaining = MAX_DOCS - docs.length;
     if (remaining <= 0) {
       setError(`แนบไฟล์เอกสารได้สูงสุด ${MAX_DOCS} ไฟล์`);
@@ -896,6 +908,8 @@ export function ChatRoom({
     !composerLocked;
   const imagesFull = images.length >= MAX_IMAGES;
   const docsFull = docs.length >= MAX_DOCS;
+  const hasImageAttachment = images.length > 0;
+  const hasDocAttachment = docs.length > 0;
   const headerTitle = role === "admin" ? "หน่วยบริการ" : "Admin Team";
   const headerSub =
     role === "admin"
@@ -1043,7 +1057,6 @@ export function ChatRoom({
               ref={imageInputRef}
               type="file"
               accept="image/*"
-              multiple
               hidden
               onChange={pickImages}
             />
@@ -1051,29 +1064,32 @@ export function ChatRoom({
               ref={docInputRef}
               type="file"
               accept={DOC_ACCEPT}
-              multiple
               hidden
               onChange={pickDocs}
             />
 
             <AttachButton
               onClick={() => imageInputRef.current?.click()}
-              disabled={imagesFull || sending || composerLocked}
+              disabled={imagesFull || hasDocAttachment || sending || composerLocked}
               title={
-                imagesFull
-                  ? `แนบครบ ${MAX_IMAGES} รูปแล้ว`
-                  : `แนบรูป (${images.length}/${MAX_IMAGES})`
+                hasDocAttachment
+                  ? "ส่งรูปและไฟล์ในข้อความเดียวกันไม่ได้"
+                  : imagesFull
+                    ? `แนบครบ ${MAX_IMAGES} รูปแล้ว`
+                    : `แนบรูป (${images.length}/${MAX_IMAGES})`
               }
               icon={<ImageIcon />}
               badge={images.length > 0 ? `${images.length}/${MAX_IMAGES}` : null}
             />
             <AttachButton
               onClick={() => docInputRef.current?.click()}
-              disabled={docsFull || sending || composerLocked}
+              disabled={docsFull || hasImageAttachment || sending || composerLocked}
               title={
-                docsFull
-                  ? `แนบเอกสารครบ ${MAX_DOCS} ไฟล์แล้ว`
-                  : `แนบเอกสาร PDF/Word/Excel/TXT/CSV (≤5MB, สูงสุด ${MAX_DOCS} ไฟล์)`
+                hasImageAttachment
+                  ? "ส่งรูปและไฟล์ในข้อความเดียวกันไม่ได้"
+                  : docsFull
+                    ? `แนบเอกสารครบ ${MAX_DOCS} ไฟล์แล้ว`
+                    : `แนบเอกสาร PDF/Word/Excel/TXT/CSV (≤5MB, สูงสุด ${MAX_DOCS} ไฟล์)`
               }
               icon={<DocIcon />}
               badge={docs.length > 0 ? `${docs.length}/${MAX_DOCS}` : null}
