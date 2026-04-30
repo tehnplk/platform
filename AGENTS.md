@@ -17,6 +17,17 @@
 
 ## Testing Tool
 - invoke `playwright-cli skill`
+- user ask for anotation ui
+    - run command for open browser session
+        ```
+        - playwright-cli open http://localhost/example
+        - playwright-cli show --annotate
+        ```
+    - run command for user's viewer
+        ```
+        - playwright-cli show
+        ```
+    - Then wait user send you the anotatation result and edit code follow user request.
 
 ## Testing result files (important**)
 - must place at  directory @.playwright-cli
