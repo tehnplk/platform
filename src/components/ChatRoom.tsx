@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type ClipboardEvent,
   type FormEvent,
 } from "react";
 import { RealtimeClient } from "@supabase/realtime-js";
@@ -224,6 +225,7 @@ export function ChatRoom({
   const [connected, setConnected] = useState(false);
   const [typingFrom, setTypingFrom] = useState<ChatRole | null>(null);
   const [soundOn, setSoundOn] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<Attachment | null>(null);
   const soundOnRef = useRef(false);
   const soundPreferenceLoadedRef = useRef(false);
 
@@ -439,12 +441,52 @@ export function ChatRoom({
     return () => window.removeEventListener("focus", refocus);
   }, []);
 
+  useEffect(() => {
+    if (!selectedImage) return;
+
+    function closeOnEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setSelectedImage(null);
+      }
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [selectedImage]);
+
   function refocusOnPanelClick(e: React.MouseEvent<HTMLElement>) {
     const t = e.target as HTMLElement;
     if (t.closest("button, a, input, textarea, video, [contenteditable]")) {
       return;
     }
     inputRef.current?.focus();
+  }
+
+  function addImageFiles(files: File[]) {
+    const imageFiles = files.filter((f) => f.type.startsWith("image/"));
+    if (!imageFiles.length) return false;
+
+    setError(null);
+    const remaining = MAX_IMAGES - images.length;
+    if (remaining <= 0) {
+      setError(`แนบรูปได้สูงสุด ${MAX_IMAGES} รูป`);
+      return true;
+    }
+
+    const accepted = imageFiles.slice(0, remaining).map<Attachment>((f) => ({
+      id: genId(),
+      kind: "image",
+      filename: f.name || `clipboard-${Date.now()}.png`,
+      mime_type: f.type,
+      localUrl: URL.createObjectURL(f),
+      file: f,
+    }));
+    setImages((prev) => [...prev, ...accepted]);
+
+    if (imageFiles.length > remaining) {
+      setError(`แนบรูปเพิ่มได้แค่ ${remaining} รูป (สูงสุด ${MAX_IMAGES})`);
+    }
+    return true;
   }
 
   function pickImages(e: ChangeEvent<HTMLInputElement>) {
@@ -677,6 +719,32 @@ export function ChatRoom({
     }
   }
 
+  function onPaste(e: ClipboardEvent<HTMLTextAreaElement>) {
+    const imageFiles = Array.from(e.clipboardData.items)
+      .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => !!file);
+
+    if (!imageFiles.length) return;
+
+    e.preventDefault();
+    addImageFiles(imageFiles);
+
+    const pastedText = e.clipboardData.getData("text/plain");
+    if (!pastedText) return;
+
+    const target = e.currentTarget;
+    const start = target.selectionStart;
+    const end = target.selectionEnd;
+    const nextDraft = draft.slice(0, start) + pastedText + draft.slice(end);
+    setDraft(nextDraft);
+    notifyTyping(nextDraft);
+    requestAnimationFrame(() => {
+      const cursorPos = start + pastedText.length;
+      target.setSelectionRange(cursorPos, cursorPos);
+    });
+  }
+
   const adminInitial = "A";
   const canSend =
     (draft.trim().length > 0 ||
@@ -779,6 +847,7 @@ export function ChatRoom({
                   adminInitial={adminInitial}
                   viewerRole={role}
                   hoscode={hoscode}
+                  onImageOpen={setSelectedImage}
                 />
               </Fragment>
             );
@@ -892,6 +961,7 @@ export function ChatRoom({
               }}
               onBlur={() => broadcastTyping("stop")}
               onKeyDown={onKeyDown}
+              onPaste={onPaste}
               rows={1}
               disabled={sending}
               placeholder="พิมพ์ข้อความ… (Shift+Enter ขึ้นบรรทัดใหม่)"
@@ -910,6 +980,12 @@ export function ChatRoom({
           </div>
         </form>
       </section>
+      {selectedImage && (
+        <ImageModal
+          image={selectedImage}
+          onClose={() => setSelectedImage(null)}
+        />
+      )}
     </Outer>
   );
 }
@@ -921,6 +997,7 @@ function Bubble({
   adminInitial,
   viewerRole,
   hoscode,
+  onImageOpen,
 }: {
   msg: Message;
   mine: boolean;
@@ -928,6 +1005,7 @@ function Bubble({
   adminInitial: string;
   viewerRole: ChatRole;
   hoscode: string;
+  onImageOpen: (image: Attachment) => void;
 }) {
   const hasText = msg.body.length > 0;
   const hasAttachments = msg.attachments.length > 0;
@@ -978,12 +1056,12 @@ function Bubble({
                 }`}
               >
                 {imageAtts.map((img) => (
-                  <a
+                  <button
+                    type="button"
                     key={img.id}
-                    href={attachmentSrc(img)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block overflow-hidden rounded-xl border border-[var(--border)]"
+                    onClick={() => onImageOpen(img)}
+                    className="block overflow-hidden rounded-xl border border-[var(--border)] text-left transition-colors hover:border-[var(--accent)]"
+                    aria-label={`เปิดรูป ${img.filename}`}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
@@ -991,7 +1069,7 @@ function Bubble({
                       alt={img.filename}
                       className="h-44 w-44 object-cover transition-opacity hover:opacity-90"
                     />
-                  </a>
+                  </button>
                 ))}
               </div>
             )}
@@ -1110,6 +1188,44 @@ function PreviewChip({
       >
         <XIcon />
       </button>
+    </div>
+  );
+}
+
+function ImageModal({
+  image,
+  onClose,
+}: {
+  image: Attachment;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-label={image.filename}
+      onClick={onClose}
+    >
+      <div
+        className="relative max-h-full max-w-full"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="ปิดรูป"
+          className="absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/70 text-white shadow-lg transition-colors hover:bg-rose-500"
+        >
+          <XIcon />
+        </button>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={attachmentSrc(image)}
+          alt={image.filename}
+          className="max-h-[88vh] max-w-[92vw] rounded-xl border border-white/15 bg-black object-contain shadow-2xl"
+        />
+      </div>
     </div>
   );
 }
