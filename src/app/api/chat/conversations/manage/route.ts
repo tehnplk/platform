@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { auth, isAdminSession } from "@/auth";
 import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,11 @@ type Row = {
   count_message: number;
 };
 
-export async function GET() {
+export const GET = auth(async function GET(req) {
+  if (!isAdminSession(req.auth)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const r = await db.query<Row>(
     `select c.hoscode,
             coalesce(c.last_message_at, max(m.created_at)) as last_chat_date_time,
@@ -24,4 +29,4 @@ export async function GET() {
   );
 
   return NextResponse.json({ conversations: r.rows });
-}
+});

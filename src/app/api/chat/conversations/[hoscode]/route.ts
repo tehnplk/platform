@@ -1,13 +1,18 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { auth, isAdminSession } from "@/auth";
 import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function DELETE(
-  _req: NextRequest,
+export const DELETE = auth(async function DELETE(
+  req,
   { params }: { params: Promise<{ hoscode: string }> },
 ) {
+  if (!isAdminSession(req.auth)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const { hoscode } = await params;
   const cleanHoscode = hoscode?.trim();
 
@@ -27,4 +32,4 @@ export async function DELETE(
     deleted: (r.rowCount ?? 0) > 0,
     hoscode: cleanHoscode,
   });
-}
+});

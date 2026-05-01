@@ -58,6 +58,26 @@ create table if not exists push_subscriptions (
 create index if not exists push_subscriptions_role_idx
   on push_subscriptions (role);
 
+create table if not exists admin_users (
+  id             uuid primary key default gen_random_uuid(),
+  username       text not null unique,
+  password_hash  text not null,
+  role           text not null default 'admin' check (role in ('admin')),
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+
+insert into admin_users (username, password_hash, role)
+values (
+  'admin',
+  'e0bc60c82713f64ef8a57c0c40d02ce24fd0141d5cc3086259c19b1e62a62bea',
+  'admin'
+)
+on conflict (username) do update
+  set password_hash = excluded.password_hash,
+      role = excluded.role,
+      updated_at = now();
+
 -- Auto-create conversation row + bump last_message_at + unread on insert
 create or replace function bump_conversation() returns trigger
   language plpgsql as $$
