@@ -1,7 +1,0 @@
-{
-  "version": "0.1.9",
-  "url": "https://platform.plkhealth.go.th/plkplatform/PlkPlatform.exe",
-  "sha256": "441e105f749856cc8fa74057cd7b0986b120c23a6059cdf6058dd838caa99e2d",
-  "release_date": "2026-04-27",
-  "notes": "เพิ่มโมดูล HDC Telemed (กรองตาม hoscode), ปรับ Chat UI, เก็บ hoscode อัตโนมัติเมื่อทดสอบเชื่อมต่อ"
-}
