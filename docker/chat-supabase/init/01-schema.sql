@@ -48,6 +48,22 @@ create table if not exists attachments (
 create index if not exists attachments_message_id_idx
   on attachments (message_id);
 
+create table if not exists hospcode (
+  hospcode         text primary key,
+  name             text,
+  chwpart          text,
+  amppart          text,
+  district         text,
+  province         text,
+  hospcode_5_digit text,
+  hospcode_9_digit text,
+  updated_at       timestamptz not null default now()
+);
+create index if not exists hospcode_5_digit_idx
+  on hospcode (hospcode_5_digit);
+create index if not exists hospcode_9_digit_idx
+  on hospcode (hospcode_9_digit);
+
 create table if not exists push_subscriptions (
   endpoint       text primary key,
   role           text not null check (role in ('admin')),

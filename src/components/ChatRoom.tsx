@@ -40,6 +40,13 @@ type Message = {
   attachments: Attachment[];
 };
 
+type UnitInfo = {
+  hoscode: string;
+  displayName: string;
+  district?: string | null;
+  province?: string | null;
+};
+
 type ServerMessage = {
   id: string;
   hoscode: string;
@@ -235,6 +242,10 @@ export function ChatRoom({
   const [typingFrom, setTypingFrom] = useState<ChatRole | null>(null);
   const [soundOn, setSoundOn] = useState(true);
   const [selectedImage, setSelectedImage] = useState<Attachment | null>(null);
+  const [unitInfoOpen, setUnitInfoOpen] = useState(false);
+  const [unitInfo, setUnitInfo] = useState<UnitInfo | null>(null);
+  const [unitInfoLoading, setUnitInfoLoading] = useState(false);
+  const [unitInfoError, setUnitInfoError] = useState<string | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<Message | null>(null);
   const [cancellingIds, setCancellingIds] = useState<Set<string>>(
@@ -574,6 +585,58 @@ export function ChatRoom({
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [selectedImage]);
+
+  useEffect(() => {
+    if (!unitInfoOpen) return;
+
+    function closeOnEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setUnitInfoOpen(false);
+      }
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [unitInfoOpen]);
+
+  useEffect(() => {
+    if (!unitInfoOpen || role !== "admin") return;
+
+    let cancelled = false;
+    window.requestAnimationFrame(() => {
+      if (cancelled) return;
+      setUnitInfoLoading(true);
+      setUnitInfoError(null);
+    });
+
+    (async () => {
+      try {
+        const r = await fetch(
+          `/api/chat/units/${encodeURIComponent(hoscode)}`,
+          { cache: "no-store" },
+        );
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const j = (await r.json()) as { unit: UnitInfo };
+        if (!cancelled) setUnitInfo(j.unit);
+      } catch (err) {
+        if (!cancelled) {
+          setUnitInfoError(err instanceof Error ? err.message : "load failed");
+          setUnitInfo({
+            hoscode,
+            displayName: `หน่วยบริการ ${hoscode}`,
+            district: null,
+            province: null,
+          });
+        }
+      } finally {
+        if (!cancelled) setUnitInfoLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hoscode, role, unitInfoOpen]);
 
   function refocusOnPanelClick(e: React.MouseEvent<HTMLElement>) {
     const t = e.target as HTMLElement;
@@ -930,27 +993,46 @@ export function ChatRoom({
         onClick={refocusOnPanelClick}
         className={`${sectionClass} relative`}>
         <header className="flex items-center gap-3 border-b border-[var(--border)] bg-[var(--inset)]/60 px-6 py-4 backdrop-blur">
-          <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] font-bold text-[#00212f]">
-            {role === "admin" ? hoscode.slice(-2) : adminInitial}
-            <span
-              className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[var(--inset)] ${
-                connected ? "bg-emerald-400" : "bg-amber-400"
-              }`}
-              title={connected ? "realtime ออนไลน์" : "กำลังเชื่อมต่อ realtime"}
-            />
-          </div>
-          <div className="flex flex-col leading-tight">
-            {role === "admin" ? (
-              <span className="text-[15px] font-semibold">
-                {headerTitle} <span className="text-[var(--muted)]">{hoscode}</span>
+          {role === "admin" ? (
+            <button
+              type="button"
+              onClick={() => setUnitInfoOpen(true)}
+              title="ดูข้อมูลหน่วยบริการ"
+              aria-label="ดูข้อมูลหน่วยบริการ"
+              className="flex min-w-0 items-center gap-3 rounded-xl px-1 py-1 text-left transition-colors hover:bg-[var(--panel)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/70"
+            >
+              <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] font-bold text-[#00212f]">
+                {hoscode.slice(-2)}
+                <span
+                  className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[var(--inset)] ${
+                    connected ? "bg-emerald-400" : "bg-amber-400"
+                  }`}
+                  title={connected ? "realtime ออนไลน์" : "กำลังเชื่อมต่อ realtime"}
+                />
+              </div>
+              <span className="flex min-w-0 flex-col leading-tight">
+                <span className="truncate text-[15px] font-semibold">
+                  {headerTitle} <span className="text-[var(--muted)]">{hoscode}</span>
+                </span>
               </span>
-            ) : (
-              <>
+            </button>
+          ) : (
+            <>
+              <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] font-bold text-[#00212f]">
+                {adminInitial}
+                <span
+                  className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[var(--inset)] ${
+                    connected ? "bg-emerald-400" : "bg-amber-400"
+                  }`}
+                  title={connected ? "realtime ออนไลน์" : "กำลังเชื่อมต่อ realtime"}
+                />
+              </div>
+              <div className="flex flex-col leading-tight">
                 <span className="text-[15px] font-semibold">{headerTitle}</span>
                 <span className="text-[12px] text-[var(--muted)]">{headerSub}</span>
-              </>
-            )}
-          </div>
+              </div>
+            </>
+          )}
           <button
             type="button"
             onClick={() => {
@@ -1151,6 +1233,17 @@ export function ChatRoom({
             onClose={closeCancelModal}
             onConfirm={() => void cancelMessage(cancelTarget.id)}
             busy={cancellingIds.has(cancelTarget.id)}
+          />
+        )}
+        {unitInfoOpen && role === "admin" && (
+          <UnitInfoModal
+            hoscode={hoscode}
+            displayName={unitInfo?.displayName ?? `หน่วยบริการ ${hoscode}`}
+            district={unitInfo?.district}
+            province={unitInfo?.province}
+            loading={unitInfoLoading}
+            error={unitInfoError}
+            onClose={() => setUnitInfoOpen(false)}
           />
         )}
       </section>
@@ -1431,6 +1524,83 @@ function ImageModal({
           alt={image.filename}
           className="max-h-[88vh] max-w-[92vw] rounded-xl border border-white/15 bg-black object-contain shadow-2xl"
         />
+      </div>
+    </div>
+  );
+}
+
+function UnitInfoModal({
+  hoscode,
+  displayName,
+  district,
+  province,
+  loading,
+  error,
+  onClose,
+}: {
+  hoscode: string;
+  displayName: string;
+  district?: string | null;
+  province?: string | null;
+  loading: boolean;
+  error: string | null;
+  onClose: () => void;
+}) {
+  const rows = [
+    ["รหัส", hoscode],
+    ["ชื่อหน่วยบริการ", displayName],
+    ["อำเภอ", district?.trim() || "-"],
+    ["จังหวัด", province?.trim() || "-"],
+  ];
+
+  return (
+    <div
+      className="absolute inset-0 z-50 flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-label="ข้อมูลหน่วยบริการ"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-lg border border-[var(--border)] bg-[var(--panel)] p-5 shadow-[0_18px_50px_rgba(0,0,0,0.45)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="text-[15px] font-semibold text-[var(--text)]">
+              ข้อมูลหน่วยบริการ
+            </div>
+            <div className="mt-1 truncate text-[12px] text-[var(--muted)]">
+              {displayName}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="ปิด"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--inset)] text-[var(--muted)] transition-colors hover:border-rose-300/70 hover:text-rose-200"
+          >
+            <XIcon />
+          </button>
+        </div>
+        <dl className="grid gap-2">
+          {error && (
+            <div className="rounded-md border border-amber-300/30 bg-amber-300/10 px-3 py-2 text-[12px] text-amber-100">
+              โหลดข้อมูลหน่วยบริการไม่สำเร็จ: {error}
+            </div>
+          )}
+          {rows.map(([label, value]) => (
+            <div
+              key={label}
+              className="grid grid-cols-[110px_1fr] gap-3 rounded-md border border-[var(--border)]/70 bg-[var(--inset)] px-3 py-2.5"
+            >
+              <dt className="text-[12px] text-[var(--muted)]">{label}</dt>
+              <dd className="min-w-0 break-words text-[13px] font-medium text-[var(--text)]">
+                {loading ? "กำลังโหลด..." : value}
+              </dd>
+            </div>
+          ))}
+        </dl>
       </div>
     </div>
   );
