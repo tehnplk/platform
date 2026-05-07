@@ -13,7 +13,7 @@
 
 ## Command Line Tool
 - `npx ctx7 --help` for research tech document
-- `db-cli --skill` for mainipulate database
+- `db-cli --skill` for mainipulate database read database credential from @.env.local
 
 ## Testing Tool
 - invoke `playwright-cli skill`
