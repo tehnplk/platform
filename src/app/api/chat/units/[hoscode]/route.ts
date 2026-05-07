@@ -25,10 +25,7 @@ export async function GET(
   const r = await db.query<UnitRow>(
     `select hospcode, name, district, province
        from hospcode
-      where hospcode = $1
-         or hospcode_5_digit = $1
-         or hospcode_9_digit = $1
-      order by (hospcode = $1) desc
+     where hospcode = $1
       limit 1`,
     [cleanHoscode],
   );

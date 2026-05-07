@@ -21,10 +21,16 @@ function useTitle(value: string) {
 type Conversation = {
   hoscode: string;
   display_name: string | null;
+  unit_name: string | null;
   last_message_at: string | null;
   admin_unread: number;
   last_body: string | null;
   last_role: "user" | "admin" | null;
+};
+
+type UnitSuggestion = {
+  hoscode: string;
+  name: string;
 };
 
 type AdminMessagePayload = {
@@ -145,6 +151,9 @@ function AdminChat() {
   const [list, setList] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [suggestions, setSuggestions] = useState<UnitSuggestion[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const previousListRef = useRef<Conversation[] | null>(null);
   const selectedRef = useRef<string | null>(selected);
@@ -310,6 +319,43 @@ function AdminChat() {
   }, [load]);
 
   useEffect(() => {
+    const cleanQuery = query.trim();
+    if (cleanQuery.length < 3 || !sidebarOpen) {
+      window.requestAnimationFrame(() => {
+        setSuggestions([]);
+        setSuggestionsLoading(false);
+      });
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      setSuggestionsLoading(true);
+      fetch(`/api/chat/units?q=${encodeURIComponent(cleanQuery)}`, {
+        cache: "no-store",
+      })
+        .then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json() as Promise<{ units: UnitSuggestion[] }>;
+        })
+        .then((j) => {
+          if (!cancelled) setSuggestions(j.units);
+        })
+        .catch(() => {
+          if (!cancelled) setSuggestions([]);
+        })
+        .finally(() => {
+          if (!cancelled) setSuggestionsLoading(false);
+        });
+    }, 180);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [query, sidebarOpen]);
+
+  useEffect(() => {
     const client = new RealtimeClient(REALTIME_URL, {
       params: { apikey: REALTIME_ANON_KEY },
     });
@@ -351,6 +397,7 @@ function AdminChat() {
             {
               hoscode: selected,
               display_name: null,
+              unit_name: null,
               last_message_at: null,
               admin_unread: 0,
               last_body: null,
@@ -379,8 +426,19 @@ function AdminChat() {
     const h = query.trim();
     if (!h) return;
     setQuery("");
+    setSuggestions([]);
+    setSuggestionsOpen(false);
     removeLocalHiddenConversation(h);
     router.replace(`/chat/admin?hoscode=${encodeURIComponent(h)}`);
+    void load();
+  }
+
+  function openSuggestion(unit: UnitSuggestion) {
+    setQuery("");
+    setSuggestions([]);
+    setSuggestionsOpen(false);
+    removeLocalHiddenConversation(unit.hoscode);
+    router.replace(`/chat/admin?hoscode=${encodeURIComponent(unit.hoscode)}`);
     void load();
   }
 
@@ -431,12 +489,19 @@ function AdminChat() {
                     e.preventDefault();
                     void openSearch();
                   }}
-                  className="mt-3 flex gap-2"
+                  className="relative mt-3 flex gap-2"
                 >
                   <input
                     type="text"
                     value={query}
-                    onChange={(e) => setQuery(e.target.value)}
+                    onChange={(e) => {
+                      setQuery(e.target.value);
+                      setSuggestionsOpen(true);
+                    }}
+                    onFocus={() => setSuggestionsOpen(true)}
+                    onBlur={() => {
+                      window.setTimeout(() => setSuggestionsOpen(false), 120);
+                    }}
                     placeholder="ค้นรหัสหน่วยงาน…"
                     className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--panel)] px-3 py-2 text-[13px] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/40"
                   />
@@ -448,6 +513,42 @@ function AdminChat() {
                   >
                     เปิด
                   </button>
+                  {suggestionsOpen && query.trim().length >= 3 && (
+                    <div
+                      role="listbox"
+                      className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 max-h-72 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--panel)] py-1 shadow-[0_16px_36px_rgba(0,0,0,0.35)]"
+                    >
+                      {suggestionsLoading && (
+                        <div className="px-3 py-2 text-[12px] text-[var(--muted)]">
+                          กำลังค้นหา...
+                        </div>
+                      )}
+                      {!suggestionsLoading && suggestions.length === 0 && (
+                        <div className="px-3 py-2 text-[12px] text-[var(--muted)]">
+                          ไม่พบหน่วยบริการ
+                        </div>
+                      )}
+                      {!suggestionsLoading &&
+                        suggestions.map((unit) => (
+                          <button
+                            key={unit.hoscode}
+                            type="button"
+                            role="option"
+                            aria-selected="false"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => openSuggestion(unit)}
+                            className="flex w-full flex-col px-3 py-2 text-left transition-colors hover:bg-[var(--inset)] focus:bg-[var(--inset)] focus:outline-none"
+                          >
+                            <span className="truncate text-[12px] text-[var(--muted)]">
+                              {unit.name}
+                            </span>
+                            <span className="truncate text-[13px] font-semibold text-[var(--text)]">
+                              {unit.hoscode}
+                            </span>
+                          </button>
+                        ))}
+                    </div>
+                  )}
                 </form>
               </>
             ) : (
@@ -470,6 +571,8 @@ function AdminChat() {
             )}
             {list.map((c) => {
               const active = c.hoscode === selected;
+              const unitName = c.unit_name?.trim() || "ไม่มีชื่อ";
+              const accessibleName = unitName ? `${unitName} ${c.hoscode}` : c.hoscode;
               const preview = c.last_body
                 ? `${c.last_role === "admin" ? "คุณ: " : ""}${c.last_body}`
                 : "—";
@@ -478,14 +581,14 @@ function AdminChat() {
                   <button
                     key={c.hoscode}
                     onClick={() => selectHoscode(c.hoscode)}
-                    title={`${c.display_name ?? c.hoscode}${c.admin_unread > 0 ? ` (ใหม่ ${c.admin_unread})` : ""}`}
+                    aria-label={`${accessibleName}${c.admin_unread > 0 ? ` ใหม่ ${c.admin_unread}` : ""}`}
                     className={`relative flex w-full items-center justify-center border-b border-[var(--border)]/60 py-3 transition-colors hover:bg-[var(--inset)] ${
                       active ? "bg-[var(--inset)]" : ""
                     }`}
                   >
                     <div className="relative">
                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] font-bold text-[#00212f]">
-                        {c.hoscode.slice(-2)}
+                        <UserAvatarIcon />
                       </div>
                       {c.admin_unread > 0 && (
                         <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-200 px-1 text-[11px] font-bold text-emerald-950 ring-2 ring-[var(--inset)]">
@@ -505,15 +608,21 @@ function AdminChat() {
                 >
                   <button
                     onClick={() => selectHoscode(c.hoscode)}
+                    aria-label={accessibleName}
                     className="flex min-w-0 flex-1 items-start gap-3 px-5 py-3 text-left"
                   >
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] font-bold text-[#00212f]">
-                      {c.hoscode.slice(-2)}
+                      <UserAvatarIcon />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex min-w-0 items-center justify-between gap-2">
-                        <span className="block min-w-0 flex-1 truncate text-[14px] font-semibold">
-                          {c.display_name ?? c.hoscode}
+                      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
+                        <span className="block min-w-0 overflow-hidden">
+                          <span className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-medium leading-4 text-[var(--muted)]">
+                            {unitName}
+                          </span>
+                          <span className="block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[14px] font-semibold leading-5">
+                            {c.hoscode}
+                          </span>
                         </span>
                         <span className="shrink-0 text-[11px] text-[var(--muted)]">
                           {formatTime(c.last_message_at)}
@@ -582,5 +691,23 @@ function AdminChat() {
         </div>
       </section>
     </main>
+  );
+}
+
+function UserAvatarIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-5 w-5"
+      aria-hidden
+    >
+      <path d="M20 21a8 8 0 0 0-16 0" />
+      <circle cx="12" cy="8" r="4" />
+    </svg>
   );
 }

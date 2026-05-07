@@ -961,7 +961,6 @@ export function ChatRoom({
     });
   }
 
-  const adminInitial = "A";
   const composerLocked = !!cancelTarget;
   const canSend =
     (draft.trim().length > 0 ||
@@ -1002,7 +1001,7 @@ export function ChatRoom({
               className="flex min-w-0 items-center gap-3 rounded-xl px-1 py-1 text-left transition-colors hover:bg-[var(--panel)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/70"
             >
               <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] font-bold text-[#00212f]">
-                {hoscode.slice(-2)}
+                <UserAvatarIcon />
                 <span
                   className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[var(--inset)] ${
                     connected ? "bg-emerald-400" : "bg-amber-400"
@@ -1019,7 +1018,7 @@ export function ChatRoom({
           ) : (
             <>
               <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] font-bold text-[#00212f]">
-                {adminInitial}
+                <UserAvatarIcon />
                 <span
                   className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[var(--inset)] ${
                     connected ? "bg-emerald-400" : "bg-amber-400"
@@ -1088,9 +1087,7 @@ export function ChatRoom({
                   cancelling={cancellingIds.has(m.id)}
                   onCancel={() => setCancelTarget(m)}
                   showAvatar={showAvatar}
-                  adminInitial={adminInitial}
                   viewerRole={role}
-                  hoscode={hoscode}
                   onImageOpen={setSelectedImage}
                 />
               </Fragment>
@@ -1099,9 +1096,7 @@ export function ChatRoom({
           {typingFrom && (
             <TypingIndicator
               from={typingFrom}
-              adminInitial={adminInitial}
               viewerRole={role}
-              hoscode={hoscode}
             />
           )}
         </div>
@@ -1264,9 +1259,7 @@ function Bubble({
   cancelling,
   onCancel,
   showAvatar,
-  adminInitial,
   viewerRole,
-  hoscode,
   onImageOpen,
 }: {
   msg: Message;
@@ -1275,9 +1268,7 @@ function Bubble({
   cancelling: boolean;
   onCancel: () => void;
   showAvatar: boolean;
-  adminInitial: string;
   viewerRole: ChatRole;
-  hoscode: string;
   onImageOpen: (image: Attachment) => void;
 }) {
   const cancelled = !!msg.cancelled_at;
@@ -1304,16 +1295,16 @@ function Bubble({
           (msg.role === "user" ? (
             viewerRole === "admin" ? (
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] text-[12px] font-bold text-[#00212f]">
-                {hoscode.slice(-2)}
+                <UserAvatarIcon small />
               </div>
             ) : (
               <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--inset)] text-[12px] font-semibold text-[var(--muted)]">
-                คุณ
+                <UserAvatarIcon small />
               </div>
             )
           ) : (
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] text-[12px] font-bold text-[#00212f]">
-              {adminInitial}
+              <UserAvatarIcon small />
             </div>
           ))}
       </div>
@@ -1678,14 +1669,10 @@ function AttachButton({
 
 function TypingIndicator({
   from,
-  adminInitial,
   viewerRole,
-  hoscode,
 }: {
   from: ChatRole;
-  adminInitial: string;
   viewerRole: ChatRole;
-  hoscode: string;
 }) {
   return (
     <div className="flex items-end gap-2 chat-bubble-in">
@@ -1693,16 +1680,16 @@ function TypingIndicator({
         {from === "user" ? (
           viewerRole === "admin" ? (
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] text-[12px] font-bold text-[#00212f]">
-              {hoscode.slice(-2)}
+              <UserAvatarIcon small />
             </div>
           ) : (
             <div className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--inset)] text-[12px] font-semibold text-[var(--muted)]">
-              คุณ
+              <UserAvatarIcon small />
             </div>
           )
         ) : (
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] text-[12px] font-bold text-[#00212f]">
-            {adminInitial}
+            <UserAvatarIcon small />
           </div>
         )}
       </div>
@@ -1721,6 +1708,24 @@ function Dot({ delay }: { delay: string }) {
       className="h-2 w-2 animate-bounce rounded-full bg-[var(--muted)]"
       style={{ animationDelay: delay }}
     />
+  );
+}
+
+function UserAvatarIcon({ small = false }: { small?: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={small ? "h-4 w-4" : "h-5 w-5"}
+      aria-hidden
+    >
+      <path d="M20 21a8 8 0 0 0-16 0" />
+      <circle cx="12" cy="8" r="4" />
+    </svg>
   );
 }
 

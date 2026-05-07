@@ -7,6 +7,7 @@ export const runtime = "nodejs";
 type Row = {
   hoscode: string;
   display_name: string | null;
+  unit_name: string | null;
   last_message_at: string | null;
   admin_unread: number;
   last_body: string | null;
@@ -17,11 +18,18 @@ export async function GET() {
   const r = await db.query<Row>(
     `select c.hoscode,
             c.display_name,
+            h.name as unit_name,
             c.last_message_at,
             c.admin_unread,
             m.body as last_body,
             m.role as last_role
        from conversations c
+       left join lateral (
+         select name
+           from hospcode
+          where hospcode = c.hoscode
+          limit 1
+       ) h on true
        left join lateral (
          select body, role
            from messages
