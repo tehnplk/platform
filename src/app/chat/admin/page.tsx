@@ -587,8 +587,10 @@ function AdminChat() {
                     }`}
                   >
                     <div className="relative">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] font-bold text-[#00212f]">
-                        <UserAvatarIcon />
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] px-1 text-center text-[10px] font-bold leading-none text-[#00212f]">
+                        <span className="block max-w-full truncate">
+                          {c.hoscode}
+                        </span>
                       </div>
                       {c.admin_unread > 0 && (
                         <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-200 px-1 text-[11px] font-bold text-emerald-950 ring-2 ring-[var(--inset)]">
