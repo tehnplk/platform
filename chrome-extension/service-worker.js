@@ -1,6 +1,6 @@
 const DEFAULT_BASE_URL = "https://platform.plkhealth.go.th";
 const BADGE_REFRESH_ALARM = "refreshUnreadBadge";
-const BADGE_REFRESH_MINUTES = 1;
+const BADGE_REFRESH_MINUTES = 0.5;
 
 async function getSettings() {
   const data = await chrome.storage.local.get({
