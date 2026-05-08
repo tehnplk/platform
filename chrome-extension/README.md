@@ -11,7 +11,7 @@ Chrome extension สำหรับแสดงจำนวนข้อควา
 
 ตอนติดตั้ง extension จะ subscribe กับ `https://platform.plkhealth.go.th/api/chat/push-subscriptions`
 ด้วย VAPID key ของระบบ จากนั้นเมื่อ server ส่ง push เข้า extension จะ fetch
-`/api/chat/conversations` เพื่อรวมค่า `admin_unread` ทุก conversation มาแสดงบน badge
+`/api/chat/admin/unread` เพื่อดึงยอดรวม `admin_unread` สำหรับ badge โดยเฉพาะ
 
 ## Usage
 

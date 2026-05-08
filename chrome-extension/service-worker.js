@@ -1,4 +1,6 @@
 const DEFAULT_BASE_URL = "https://platform.plkhealth.go.th";
+const BADGE_REFRESH_ALARM = "refreshUnreadBadge";
+const BADGE_REFRESH_MINUTES = 1;
 
 async function getSettings() {
   const data = await chrome.storage.local.get({
@@ -47,13 +49,9 @@ function formatBadgeCount(count) {
   return String(count);
 }
 
-function sumAdminUnread(payload) {
-  if (!payload || !Array.isArray(payload.conversations)) return 0;
-
-  return payload.conversations.reduce((total, conversation) => {
-    const unread = Number(conversation.admin_unread || 0);
-    return total + (Number.isFinite(unread) && unread > 0 ? unread : 0);
-  }, 0);
+function readAdminUnread(payload) {
+  const unread = Number(payload?.unread || 0);
+  return Number.isFinite(unread) && unread > 0 ? unread : 0;
 }
 
 async function updateBadge(unread, baseUrl) {
@@ -91,17 +89,24 @@ async function setErrorBadge(message) {
 
 async function refreshUnreadBadge() {
   const { baseUrl } = await getSettings();
-  const url = `${baseUrl}/api/chat/conversations`;
+  const url = `${baseUrl}/api/chat/admin/unread`;
 
   try {
     const response = await fetch(url, { cache: "no-store" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
     const payload = await response.json();
-    await updateBadge(sumAdminUnread(payload), baseUrl);
+    await updateBadge(readAdminUnread(payload), baseUrl);
   } catch (error) {
     await setErrorBadge(error instanceof Error ? error.message : "Update failed");
   }
+}
+
+async function scheduleBadgeRefreshAlarm() {
+  await chrome.alarms.create(BADGE_REFRESH_ALARM, {
+    delayInMinutes: BADGE_REFRESH_MINUTES,
+    periodInMinutes: BADGE_REFRESH_MINUTES,
+  });
 }
 
 async function registerPushSubscription() {
@@ -154,6 +159,7 @@ async function registerPushSubscription() {
 
 async function initializePushBadge() {
   try {
+    await scheduleBadgeRefreshAlarm();
     await registerPushSubscription();
     await refreshUnreadBadge();
   } catch (error) {
@@ -167,6 +173,11 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.runtime.onStartup.addListener(() => {
   void initializePushBadge();
+});
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name !== BADGE_REFRESH_ALARM) return;
+  void refreshUnreadBadge();
 });
 
 self.addEventListener("push", (event) => {
