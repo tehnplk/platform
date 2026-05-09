@@ -1096,7 +1096,7 @@ export function ChatRoom({
             </button>
           ) : (
             <>
-              <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] font-bold text-[#00212f]">
+              <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-sky-600 font-bold text-[#00212f]">
                 <UserAvatarIcon />
                 <span
                   className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[var(--inset)] ${
@@ -1382,7 +1382,7 @@ function Bubble({
               </div>
             )
           ) : (
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] text-[12px] font-bold text-[#00212f]">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-sky-600 text-[12px] font-bold text-[#00212f]">
               <UserAvatarIcon small />
             </div>
           ))}
@@ -1767,7 +1767,7 @@ function TypingIndicator({
             </div>
           )
         ) : (
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] text-[12px] font-bold text-[#00212f]">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-sky-600 text-[12px] font-bold text-[#00212f]">
             <UserAvatarIcon small />
           </div>
         )}

@@ -37,5 +37,9 @@ function UserChat() {
       </main>
     );
   }
-  return <ChatRoom hoscode={hoscode} role="user" />;
+  return (
+    <div className="flex h-screen w-full [--accent:#34d399] [--accent-2:#059669]">
+      <ChatRoom hoscode={hoscode} role="user" />
+    </div>
+  );
 }
