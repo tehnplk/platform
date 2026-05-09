@@ -23,7 +23,7 @@
         - playwright-cli open http://localhost/example
         - playwright-cli show --annotate
         ```
-    - run command for user's viewer
+    - you have to run command for user's viewer
         ```
         - playwright-cli show
         ```

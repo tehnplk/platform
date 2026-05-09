@@ -18,6 +18,24 @@ import {
 
 export type ChatRole = "user" | "admin";
 
+type PyQtBridge = {
+  notify?: (title: string, message: string) => void;
+};
+
+type QWebChannelConstructor = new (
+  transport: unknown,
+  callback: (channel: { objects?: { pyqtBridge?: PyQtBridge } }) => void,
+) => void;
+
+declare global {
+  interface Window {
+    qt?: { webChannelTransport?: unknown };
+    QWebChannel?: QWebChannelConstructor;
+    pyqtBridge?: PyQtBridge;
+    __chatQtBridgeLoading?: boolean;
+  }
+}
+
 type Attachment = {
   id: string; // server id once persisted; for previews this is a local uuid
   kind: "image" | "video" | "doc";
@@ -227,10 +245,12 @@ export function ChatRoom({
   hoscode,
   role,
   embedded = false,
+  onConversationRead,
 }: {
   hoscode: string;
   role: ChatRole;
   embedded?: boolean;
+  onConversationRead?: (role: ChatRole) => void;
 }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
@@ -254,6 +274,7 @@ export function ChatRoom({
   const soundOnRef = useRef(true);
   const soundPreferenceLoadedRef = useRef(false);
   const pendingSoundRef = useRef(false);
+  const pyqtBridgeRef = useRef<PyQtBridge | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -349,6 +370,34 @@ export function ChatRoom({
     };
   }, [triggerPendingChatSound]);
 
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.qt?.webChannelTransport) return;
+
+    const connectBridge = () => {
+      if (!window.QWebChannel || !window.qt?.webChannelTransport) return;
+      new window.QWebChannel(window.qt.webChannelTransport, (channel) => {
+        const bridge = channel.objects?.pyqtBridge ?? null;
+        pyqtBridgeRef.current = bridge;
+        window.pyqtBridge = bridge ?? undefined;
+      });
+    };
+
+    if (window.QWebChannel) {
+      connectBridge();
+      return;
+    }
+    if (window.__chatQtBridgeLoading) return;
+
+    window.__chatQtBridgeLoading = true;
+    const script = document.createElement("script");
+    script.src = "qrc:///qtwebchannel/qwebchannel.js";
+    script.onload = connectBridge;
+    script.onerror = () => {
+      window.__chatQtBridgeLoading = false;
+    };
+    document.head.appendChild(script);
+  }, []);
+
   const channelRef = useRef<ReturnType<RealtimeClient["channel"]> | null>(null);
   const typingClearRef = useRef<number | null>(null);
   const typingBroadcastSentAtRef = useRef(0);
@@ -359,7 +408,13 @@ export function ChatRoom({
   const imageInputRef = useRef<HTMLInputElement>(null);
   const docInputRef = useRef<HTMLInputElement>(null);
 
+  const canMarkConversationRead = useCallback(() => {
+    if (typeof document === "undefined") return false;
+    return document.visibilityState === "visible" && document.hasFocus();
+  }, []);
+
   const markConversationRead = useCallback(async () => {
+    if (!canMarkConversationRead()) return;
     try {
       const r = await fetch(
         `/api/chat/conversations/${encodeURIComponent(hoscode)}/read?role=${role}`,
@@ -373,10 +428,11 @@ export function ChatRoom({
           m.role !== role && !m.read_at ? { ...m, read_at: j.read_at ?? null } : m,
         ),
       );
+      onConversationRead?.(role);
     } catch (err) {
       console.error("mark conversation read failed", err);
     }
-  }, [hoscode, role]);
+  }, [canMarkConversationRead, hoscode, onConversationRead, role]);
 
   // Initial load
   useEffect(() => {
@@ -431,6 +487,10 @@ export function ChatRoom({
           // The sender just sent — they have stopped typing.
           if (senderRole && senderRole !== role) {
             setTypingFrom((cur) => (cur === senderRole ? null : cur));
+            pyqtBridgeRef.current?.notify?.(
+              senderRole === "admin" ? "Admin Team" : `หน่วยบริการ ${hoscode}`,
+              "มีข้อความใหม่",
+            );
             void triggerChatSound();
             void markConversationRead();
           }
@@ -532,6 +592,25 @@ export function ChatRoom({
       client.disconnect();
     };
   }, [hoscode, markConversationRead, role, triggerChatSound]);
+
+  useEffect(() => {
+    const markVisibleUnread = () => {
+      if (!canMarkConversationRead()) return;
+      setMessages((current) => {
+        if (current.some((m) => m.role !== role && !m.read_at)) {
+          void markConversationRead();
+        }
+        return current;
+      });
+    };
+
+    document.addEventListener("visibilitychange", markVisibleUnread);
+    window.addEventListener("focus", markVisibleUnread);
+    return () => {
+      document.removeEventListener("visibilitychange", markVisibleUnread);
+      window.removeEventListener("focus", markVisibleUnread);
+    };
+  }, [canMarkConversationRead, markConversationRead, role]);
 
   // Auto-scroll on new messages OR when the other side starts typing
   useEffect(() => {

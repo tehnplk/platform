@@ -288,34 +288,66 @@ function AdminChat() {
       const r = await fetch("/api/chat/conversations", { cache: "no-store" });
       if (!r.ok) return;
       const j = (await r.json()) as { conversations: Conversation[] };
-      const sel = params.get("hoscode")?.trim() || null;
       const hidden = readLocalHiddenConversations();
       const visibleConversations = j.conversations.filter(
         (conversation) => !isConversationLocallyHidden(conversation, hidden),
       );
-      const nextList = sel
-        ? visibleConversations.map((c) =>
-            c.hoscode === sel ? { ...c, admin_unread: 0 } : c,
-          )
-        : visibleConversations;
-      notifyNewUnreadMessages(nextList);
-      previousListRef.current = nextList;
-      setList(nextList);
-      if (sel && visibleConversations.some((c) => c.hoscode === sel && c.admin_unread > 0)) {
-        void fetch(
-          `/api/chat/conversations/${encodeURIComponent(sel)}/read?role=admin`,
-          { method: "POST" },
-        );
-      }
+      notifyNewUnreadMessages(visibleConversations);
+      previousListRef.current = visibleConversations;
+      setList(visibleConversations);
+    } catch (err) {
+      console.warn("load conversations failed", err);
     } finally {
       setLoading(false);
     }
-  }, [notifyNewUnreadMessages, params]);
+  }, [notifyNewUnreadMessages]);
+
+  const handleConversationRead = useCallback(
+    (readRole: "user" | "admin") => {
+      if (readRole !== "admin" || !selectedRef.current) return;
+      const currentSelected = selectedRef.current;
+      setList((prev) =>
+        prev.map((c) => {
+          if (c.hoscode !== currentSelected || c.admin_unread === 0) return c;
+          return { ...c, admin_unread: 0 };
+        }),
+      );
+    },
+    [],
+  );
 
   useEffect(() => {
+    let timer: number | null = null;
+    let cancelled = false;
+
+    const schedule = () => {
+      if (cancelled) return;
+      timer = window.setTimeout(() => {
+        if (cancelled) return;
+        if (document.visibilityState === "visible") {
+          void load();
+        }
+        schedule();
+      }, 5000);
+    };
+
     void load();
-    const t = setInterval(load, 5000);
-    return () => clearInterval(t);
+    schedule();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void load();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      if (timer !== null) {
+        window.clearTimeout(timer);
+      }
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [load]);
 
   useEffect(() => {
@@ -406,9 +438,7 @@ function AdminChat() {
             ...prev,
           ];
         }
-        return prev.map((c) =>
-          c.hoscode === selected ? { ...c, admin_unread: 0 } : c,
-        );
+        return prev;
       });
     });
     removeLocalHiddenConversation(selected);
@@ -684,6 +714,7 @@ function AdminChat() {
               hoscode={selected}
               role="admin"
               embedded
+              onConversationRead={handleConversationRead}
             />
           ) : (
             <div className="flex flex-1 items-center justify-center text-[14px] text-[var(--muted)]">

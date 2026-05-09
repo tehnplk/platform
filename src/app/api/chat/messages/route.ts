@@ -26,6 +26,78 @@ type MessageRow = {
   cancelled_at: string | null;
 };
 
+const MAX_IMAGE_ATTACHMENTS = 1;
+const MAX_DOC_ATTACHMENTS = 1;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_DOC_BYTES = 5 * 1024 * 1024;
+const ALLOWED_DOC_MIME_TYPES = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "text/plain",
+  "text/csv",
+]);
+const ALLOWED_DOC_EXTENSIONS = new Set([
+  "pdf",
+  "doc",
+  "docx",
+  "xls",
+  "xlsx",
+  "txt",
+  "csv",
+]);
+
+function getFileExtension(filename: string) {
+  return filename.split(".").pop()?.toLowerCase() ?? "";
+}
+
+function getAttachmentKind(file: File): "image" | "doc" | null {
+  if (file.type.startsWith("image/")) return "image";
+  const ext = getFileExtension(file.name);
+  if (ALLOWED_DOC_MIME_TYPES.has(file.type) || ALLOWED_DOC_EXTENSIONS.has(ext)) {
+    return "doc";
+  }
+  return null;
+}
+
+function validateAttachments(files: File[]) {
+  const kinds = files.map((file) => ({ file, kind: getAttachmentKind(file) }));
+  const invalid = kinds.find((item) => !item.kind);
+  if (invalid) {
+    return { error: `unsupported attachment type: ${invalid.file.name}` };
+  }
+
+  const imageFiles = kinds.filter((item) => item.kind === "image");
+  const docFiles = kinds.filter((item) => item.kind === "doc");
+  if (imageFiles.length > 0 && docFiles.length > 0) {
+    return { error: "cannot mix image and document attachments" };
+  }
+  if (imageFiles.length > MAX_IMAGE_ATTACHMENTS) {
+    return { error: `too many image attachments; max ${MAX_IMAGE_ATTACHMENTS}` };
+  }
+  if (docFiles.length > MAX_DOC_ATTACHMENTS) {
+    return { error: `too many document attachments; max ${MAX_DOC_ATTACHMENTS}` };
+  }
+
+  const oversizedImage = imageFiles.find((item) => item.file.size > MAX_IMAGE_BYTES);
+  if (oversizedImage) {
+    return { error: `image attachment too large: ${oversizedImage.file.name}` };
+  }
+  const oversizedDoc = docFiles.find((item) => item.file.size > MAX_DOC_BYTES);
+  if (oversizedDoc) {
+    return { error: `document attachment too large: ${oversizedDoc.file.name}` };
+  }
+
+  return {
+    attachments: kinds.map((item) => ({
+      file: item.file,
+      kind: item.kind as "image" | "doc",
+    })),
+  };
+}
+
 export async function GET(req: NextRequest) {
   const hoscode = req.nextUrl.searchParams.get("hoscode");
   if (!hoscode) {
@@ -99,6 +171,13 @@ export async function POST(req: NextRequest) {
   if (!body.trim() && files.length === 0) {
     return NextResponse.json({ error: "empty message" }, { status: 400 });
   }
+  const attachmentValidation = validateAttachments(files);
+  if ("error" in attachmentValidation) {
+    return NextResponse.json(
+      { error: attachmentValidation.error },
+      { status: 400 },
+    );
+  }
 
   const client = await db.connect();
   try {
@@ -127,13 +206,8 @@ export async function POST(req: NextRequest) {
     const msg = msgRes.rows[0];
 
     const attachmentResults: AttachmentRow[] = [];
-    for (const file of files) {
+    for (const { file, kind } of attachmentValidation.attachments) {
       const buf = Buffer.from(await file.arrayBuffer());
-      const kind: "image" | "video" | "doc" = file.type.startsWith("video/")
-        ? "video"
-        : file.type.startsWith("image/")
-          ? "image"
-          : "doc";
       const r = await client.query<AttachmentRow>(
         `insert into attachments
            (message_id, kind, filename, mime_type, size_bytes, data)
