@@ -1079,7 +1079,7 @@ export function ChatRoom({
               aria-label="ดูข้อมูลหน่วยบริการ"
               className="flex min-w-0 items-center gap-3 rounded-xl px-1 py-1 text-left transition-colors hover:bg-[var(--panel)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/70"
             >
-              <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] font-bold text-[#00212f]">
+              <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] font-bold text-white">
                 <UserAvatarIcon />
                 <span
                   className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[var(--inset)] ${
@@ -1096,7 +1096,7 @@ export function ChatRoom({
             </button>
           ) : (
             <>
-              <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-sky-600 font-bold text-[#00212f]">
+              <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] font-bold text-white">
                 <UserAvatarIcon />
                 <span
                   className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[var(--inset)] ${
@@ -1294,7 +1294,7 @@ export function ChatRoom({
             <button
               type="submit"
               disabled={!canSend}
-              className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] px-5 font-bold text-[#00212f] shadow-[0_6px_18px_rgba(14,165,233,0.35)] transition-[transform,opacity] hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none disabled:hover:translate-y-0 max-[640px]:w-11 max-[640px]:gap-0 max-[640px]:px-0 max-[640px]:text-[0px]"
+              className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] px-5 font-bold text-white shadow-[0_6px_18px_rgba(var(--shadow-accent),0.35)] transition-[transform,opacity] hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none disabled:hover:translate-y-0 max-[640px]:w-11 max-[640px]:gap-0 max-[640px]:px-0 max-[640px]:text-[0px]"
               aria-label="ส่งข้อความ"
             >
               <SendIcon />
@@ -1373,7 +1373,7 @@ function Bubble({
         {showAvatar &&
           (msg.role === "user" ? (
             viewerRole === "admin" ? (
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] text-[12px] font-bold text-[#00212f]">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] text-[12px] font-bold text-white">
                 <UserAvatarIcon small />
               </div>
             ) : (
@@ -1382,7 +1382,7 @@ function Bubble({
               </div>
             )
           ) : (
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-sky-600 text-[12px] font-bold text-[#00212f]">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] text-[12px] font-bold text-white">
               <UserAvatarIcon small />
             </div>
           ))}
@@ -1483,10 +1483,10 @@ function Bubble({
             <div
               className={
                 cancelled
-                  ? "rounded-2xl border border-[var(--border)]/60 bg-[var(--inset)]/45 px-4 py-2.5 text-[14px] italic leading-[1.5] text-[var(--muted)] opacity-70"
+                  ? "rounded-lg border border-[var(--border)]/60 bg-[var(--inset)]/45 px-4 py-2.5 text-[14px] italic leading-[1.5] text-[var(--muted)] opacity-70"
                   : mine
-                    ? "rounded-2xl rounded-br-md bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] px-4 py-2.5 text-[15px] leading-[1.5] text-[#00212f] shadow-[0_4px_14px_rgba(14,165,233,0.25)]"
-                    : "rounded-2xl rounded-bl-md border border-[var(--border)] bg-[var(--inset)] px-4 py-2.5 text-[15px] leading-[1.5] text-[var(--text)]"
+                    ? "rounded-lg bg-[var(--accent)] px-4 py-2.5 text-[15px] leading-[1.5] text-white"
+                    : "rounded-lg bg-[var(--inset)] px-4 py-2.5 text-[15px] leading-[1.5] text-[var(--text)]"
               }
             >
               <span className="whitespace-pre-wrap break-words">{msg.body}</span>
@@ -1738,7 +1738,7 @@ function AttachButton({
     >
       {icon}
       {badge && (
-        <span className="absolute -right-1 -top-1 rounded-full bg-[var(--accent)] px-1.5 py-0.5 font-mono text-[10px] font-bold text-[#00212f]">
+        <span className="absolute -right-1 -top-1 rounded-full bg-[var(--accent)] px-1.5 py-0.5 font-mono text-[10px] font-bold text-white">
           {badge}
         </span>
       )}
@@ -1758,7 +1758,7 @@ function TypingIndicator({
       <div className="w-8 shrink-0">
         {from === "user" ? (
           viewerRole === "admin" ? (
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] text-[12px] font-bold text-[#00212f]">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] text-[12px] font-bold text-white">
               <UserAvatarIcon small />
             </div>
           ) : (
@@ -1767,7 +1767,7 @@ function TypingIndicator({
             </div>
           )
         ) : (
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-sky-600 text-[12px] font-bold text-[#00212f]">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] text-[12px] font-bold text-white">
             <UserAvatarIcon small />
           </div>
         )}

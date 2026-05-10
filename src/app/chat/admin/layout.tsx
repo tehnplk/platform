@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 export default function AdminChatLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  return children;
+  return <div className="theme-light-blue min-h-screen">{children}</div>;
 }

@@ -120,8 +120,8 @@ export default function AdminManagePage() {
       cancelButtonText: "ยกเลิก",
       confirmButtonColor: "#dc2626",
       cancelButtonColor: "#475569",
-      background: "#111c33",
-      color: "#e2e8f0",
+      background: "#f0f9ff",
+      color: "#0f172a",
     });
 
     if (!result.isConfirmed) return;
@@ -141,8 +141,8 @@ export default function AdminManagePage() {
         icon: "success",
         confirmButtonText: "ตกลง",
         confirmButtonColor: "#0ea5e9",
-        background: "#111c33",
-        color: "#e2e8f0",
+        background: "#f0f9ff",
+        color: "#0f172a",
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : "delete failed";
@@ -153,8 +153,8 @@ export default function AdminManagePage() {
         icon: "error",
         confirmButtonText: "ตกลง",
         confirmButtonColor: "#0ea5e9",
-        background: "#111c33",
-        color: "#e2e8f0",
+        background: "#f0f9ff",
+        color: "#0f172a",
       });
     } finally {
       setDeletingHoscode(null);
@@ -184,7 +184,7 @@ export default function AdminManagePage() {
             </button>
             <Link
               href="/chat/admin"
-              className="rounded-lg bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] px-3 py-2 text-[13px] font-bold text-[#00212f]"
+              className="rounded-lg bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] px-3 py-2 text-[13px] font-bold text-white"
             >
               กลับหน้าแชท
             </Link>

@@ -535,10 +535,10 @@ function AdminChat() {
                     placeholder="ค้นรหัสหน่วยงาน…"
                     className="flex-1 rounded-lg border border-[var(--border)] bg-[var(--panel)] px-3 py-2 text-[13px] outline-none placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]/40"
                   />
-                  <button
+                    <button
                     type="submit"
                     disabled={!query.trim()}
-                    className="rounded-lg bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] px-3 text-[13px] font-bold text-[#00212f] disabled:cursor-not-allowed disabled:opacity-40"
+                    className="rounded-lg bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] px-3 text-[13px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
                     aria-label="เปิดห้อง"
                   >
                     เปิด
@@ -617,7 +617,7 @@ function AdminChat() {
                     }`}
                   >
                     <div className="relative">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] px-1 text-center text-[10px] font-bold leading-none text-[#00212f]">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] px-1 text-center text-[10px] font-bold leading-none text-white">
                         <span className="block max-w-full truncate">
                           {c.hoscode}
                         </span>
@@ -643,7 +643,7 @@ function AdminChat() {
                     aria-label={accessibleName}
                     className="flex min-w-0 flex-1 items-start gap-3 px-5 py-3 text-left"
                   >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] font-bold text-[#00212f]">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] font-bold text-white">
                       <UserAvatarIcon />
                     </div>
                     <div className="min-w-0 flex-1">

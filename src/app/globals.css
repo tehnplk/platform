@@ -9,6 +9,7 @@
   --accent-2: #0ea5e9;
   --border: #1e293b;
   --inset: #0b1426;
+  --shadow-accent: 14 165 233;
 }
 
 @theme inline {
@@ -39,6 +40,40 @@ body {
   font-family: var(--font-sans);
 }
 
+/* Light blue theme for /chat/admin */
+.theme-light-blue {
+  --bg: #f0f9ff;
+  --panel: #ffffff;
+  --text: #0f172a;
+  --muted: #64748b;
+  --accent: #0ea5e9;
+  --accent-2: #0284c7;
+  --border: #bae6fd;
+  --inset: #e0f2fe;
+  --shadow-accent: 14 165 233;
+  background:
+    radial-gradient(1200px 600px at 50% -10%, #bae6fd66 0%, transparent 60%),
+    var(--bg);
+  color: var(--text);
+}
+
+/* Light green theme for /chat/user */
+.theme-light-green {
+  --bg: #f0fdf4;
+  --panel: #ffffff;
+  --text: #0f172a;
+  --muted: #64748b;
+  --accent: #34d399;
+  --accent-2: #059669;
+  --border: #bbf7d0;
+  --inset: #dcfce7;
+  --shadow-accent: 52 211 153;
+  background:
+    radial-gradient(1200px 600px at 50% -10%, #bbf7d066 0%, transparent 60%),
+    var(--bg);
+  color: var(--text);
+}
+
 @keyframes chat-bubble-in {
   from {
     opacity: 0;
@@ -53,4 +88,3 @@ body {
 .chat-bubble-in {
   animation: chat-bubble-in 220ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
-
