@@ -99,16 +99,30 @@ create table if not exists admin_users (
   updated_at     timestamptz not null default now()
 );
 
-insert into admin_users (username, password_hash, role)
+insert into users (username, password_hash, role, department)
 values (
   'admin',
   'e0bc60c82713f64ef8a57c0c40d02ce24fd0141d5cc3086259c19b1e62a62bea',
-  'admin'
+  'admin',
+  'IT'
 )
 on conflict (username) do update
   set password_hash = excluded.password_hash,
       role = excluded.role,
+      department = excluded.department,
       updated_at = now();
+
+create table if not exists users (
+  id             uuid primary key default gen_random_uuid(),
+  username       text not null unique,
+  password_hash  text not null,
+  department     text,
+  role           text not null default 'user',
+  is_active      boolean not null default true,
+  last_login     timestamptz,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
 
 -- Auto-create conversation row + bump last_message_at + unread on insert
 create or replace function bump_conversation() returns trigger

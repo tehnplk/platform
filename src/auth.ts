@@ -2,11 +2,13 @@ import type { Session } from "next-auth";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 
-type AdminUserRow = {
+type UserRow = {
   id: string;
   username: string;
   password_hash: string;
-  role: "admin";
+  department: string | null;
+  role: string;
+  is_active: boolean;
 };
 
 function readCredential(value: unknown) {
@@ -81,24 +83,32 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!username || !password) return null;
 
         const { db } = await import("@/lib/db");
-        const result = await db.query<AdminUserRow>(
-          `select id::text, username, password_hash, role
-             from admin_users
+        const result = await db.query<UserRow>(
+          `select id::text, username, password_hash, department, role, is_active
+             from users
             where username = $1
+              and is_active = true
             limit 1`,
           [username],
         );
 
-        const adminUser = result.rows[0];
-        if (!adminUser) return null;
+        const userRow = result.rows[0];
+        if (!userRow) return null;
 
         const passwordHash = await sha256Hex(password);
-        if (!(await safeEqual(passwordHash, adminUser.password_hash))) return null;
+        if (!(await safeEqual(passwordHash, userRow.password_hash))) return null;
+
+        void db.query(
+          `update users set last_login = now(), updated_at = now()
+            where id = $1::uuid`,
+          [userRow.id],
+        );
 
         return {
-          id: adminUser.id,
-          name: adminUser.username,
-          role: adminUser.role,
+          id: userRow.id,
+          name: userRow.username,
+          role: userRow.role,
+          department: userRow.department,
         };
       },
     }),
@@ -110,13 +120,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     jwt({ token, user }) {
       if (user) {
         token.role = user.role;
+        token.department = (user as { department?: string | null }).department ?? null;
       }
       return token;
     },
     session({ session, token }) {
       if (session.user) {
-        session.user.id = token.sub ?? "chat-admin";
-        session.user.role = token.role === "admin" ? "admin" : "admin";
+        session.user.id = token.sub ?? "";
+        session.user.role = (token.role as string) ?? "user";
+        session.user.department = (token.department as string | null) ?? null;
       }
       return session;
     },
