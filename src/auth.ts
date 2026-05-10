@@ -47,7 +47,7 @@ async function safeEqual(left: string, right: string) {
 }
 
 export function isAdminSession(session: Session | null | undefined) {
-  return session?.user?.role === "admin";
+  return session?.user?.role === "admin" || session?.user?.role === "sub-admin";
 }
 
 export function normalizeCallbackUrl(
