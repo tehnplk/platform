@@ -7,6 +7,7 @@ export const runtime = "nodejs";
 
 type Row = {
   hoscode: string;
+  hosname: string | null;
   last_chat_date_time: string | null;
   count_message: number;
 };
@@ -18,13 +19,16 @@ export const GET = auth(async function GET(req) {
 
   const r = await db.query<Row>(
     `select c.hoscode,
+            h.name as hosname,
             coalesce(c.last_message_at, max(m.created_at)) as last_chat_date_time,
             count(m.id)::int as count_message
        from conversations c
        left join messages m
          on m.hoscode = c.hoscode
         and m.created_at >= now() - interval '15 days'
-      group by c.hoscode, c.last_message_at
+       left join hospcode h
+         on h.hospcode = c.hoscode
+      group by c.hoscode, c.last_message_at, h.name
       order by last_chat_date_time desc nulls last, c.hoscode asc`,
   );
 

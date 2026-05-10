@@ -6,6 +6,7 @@ import Swal from "sweetalert2";
 
 type ManagedConversation = {
   hoscode: string;
+  hosname: string | null;
   last_chat_date_time: string | null;
   count_message: number;
 };
@@ -48,6 +49,8 @@ function sortConversations(
       result = at - bt;
     } else if (key === "count_message") {
       result = a.count_message - b.count_message;
+    } else if (key === "hosname") {
+      result = compareText(a.hosname ?? "", b.hosname ?? "");
     } else {
       result = compareText(a.hoscode, b.hoscode);
     }
@@ -91,8 +94,10 @@ export default function AdminManagePage() {
     };
   }, [load]);
 
+  const q = hoscodeFilter.trim().toLowerCase();
   const filteredItems = items.filter((item) =>
-    item.hoscode.toLowerCase().includes(hoscodeFilter.trim().toLowerCase()),
+    item.hoscode.toLowerCase().includes(q) ||
+    (item.hosname ?? "").toLowerCase().includes(q),
   );
   const visibleItems = sortConversations(filteredItems, sortKey, sortDirection);
 
@@ -230,10 +235,10 @@ export default function AdminManagePage() {
                 <th className="px-6 py-3 font-semibold">
                   <button
                     type="button"
-                    onClick={() => changeSort("hoscode")}
+                    onClick={() => changeSort("hosname")}
                     className="inline-flex items-center gap-2 transition-colors hover:text-[var(--text)]"
                   >
-                    hoscode <span>{sortLabel("hoscode")}</span>
+                    หน่วยบริการ <span>{sortLabel("hosname")}</span>
                   </button>
                 </th>
                 <th className="px-6 py-3 text-right font-semibold">
@@ -286,12 +291,12 @@ export default function AdminManagePage() {
                       <td className="px-6 py-4 text-[14px]">
                         {formatDateTime(item.last_chat_date_time)}
                       </td>
-                      <td className="px-6 py-4 font-mono text-[14px]">
+                      <td className="px-6 py-4 text-[14px]">
                         <Link
                           href={`/chat/admin?hoscode=${encodeURIComponent(item.hoscode)}`}
                           className="transition-colors hover:text-[var(--accent)] hover:underline"
                         >
-                          {item.hoscode}
+                          {item.hoscode}{item.hosname ? ` - ${item.hosname}` : ""}
                         </Link>
                       </td>
                       <td className="px-6 py-4 text-right font-mono text-[14px]">
