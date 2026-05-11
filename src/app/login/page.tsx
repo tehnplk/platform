@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import {
   auth,
   isAdminSession,
+  isTeamSession,
   normalizeCallbackUrl,
   signIn,
 } from "@/auth";
@@ -43,6 +44,9 @@ export default async function LoginPage({
 
   if (isAdminSession(session)) {
     redirect(callbackUrl);
+  }
+  if (isTeamSession(session)) {
+    redirect("/chat/team");
   }
 
   async function authenticate(formData: FormData) {

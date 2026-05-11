@@ -1,10 +1,17 @@
 import type { NextRequest } from "next/server";
-import { auth, getAdminSignInUrl, isAdminSession } from "@/auth";
+import {
+  auth,
+  getAdminSignInUrl,
+  isAdminSession,
+  isTeamSession,
+} from "@/auth";
 
 export async function proxy(req: NextRequest) {
   const session = await auth();
+  const isManagePath = req.nextUrl.pathname.startsWith("/chat/admin/manage");
+  const allowed = isManagePath ? isAdminSession(session) : isTeamSession(session);
 
-  if (!isAdminSession(session)) {
+  if (!allowed) {
     const callbackUrl = `${req.nextUrl.pathname}${req.nextUrl.search}`;
     const signInUrl = new URL(
       getAdminSignInUrl(callbackUrl),
@@ -15,5 +22,5 @@ export async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/chat/admin/manage/:path*"],
+  matcher: ["/chat/team/:path*", "/chat/admin/manage/:path*"],
 };

@@ -188,7 +188,7 @@ export default function AdminManagePage() {
               รีเฟรช
             </button>
             <Link
-              href="/chat/admin"
+              href="/chat/team"
               className="rounded-lg bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] px-3 py-2 text-[13px] font-bold text-white"
             >
               กลับหน้าแชท
@@ -293,7 +293,7 @@ export default function AdminManagePage() {
                       </td>
                       <td className="px-6 py-4 text-[14px]">
                         <Link
-                          href={`/chat/admin?hoscode=${encodeURIComponent(item.hoscode)}`}
+                          href={`/chat/team?hoscode=${encodeURIComponent(item.hoscode)}`}
                           className="transition-colors hover:text-[var(--accent)] hover:underline"
                         >
                           {item.hoscode}{item.hosname ? ` - ${item.hosname}` : ""}

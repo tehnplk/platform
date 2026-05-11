@@ -2,10 +2,13 @@ import type { Session } from "next-auth";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 
+const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
+
 type UserRow = {
   id: string;
   username: string;
   password_hash: string;
+  fullname: string | null;
   department: string | null;
   role: string;
   is_active: boolean;
@@ -47,12 +50,16 @@ async function safeEqual(left: string, right: string) {
 }
 
 export function isAdminSession(session: Session | null | undefined) {
-  return session?.user?.role === "admin" || session?.user?.role === "sub-admin";
+  return session?.user?.role === "admin";
+}
+
+export function isTeamSession(session: Session | null | undefined) {
+  return session?.user?.role === "admin" || session?.user?.role === "team";
 }
 
 export function normalizeCallbackUrl(
   callbackUrl: string | null | undefined,
-  fallback = "/chat/admin/manage",
+  fallback = "/chat/team",
 ) {
   if (!callbackUrl) return fallback;
   if (!callbackUrl.startsWith("/") || callbackUrl.startsWith("//")) {
@@ -69,6 +76,13 @@ export function getAdminSignInUrl(callbackUrl: string) {
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
+  session: {
+    strategy: "jwt",
+    maxAge: SESSION_MAX_AGE_SECONDS,
+  },
+  jwt: {
+    maxAge: SESSION_MAX_AGE_SECONDS,
+  },
   providers: [
     Credentials({
       name: "Admin Login",
@@ -84,8 +98,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const { db } = await import("@/lib/db");
         const result = await db.query<UserRow>(
-          `select id::text, username, password_hash, department, role, is_active
-             from users
+          `select id::text, username, password_hash, fullname, department, role, is_active
+             from team_users
             where username = $1
               and is_active = true
             limit 1`,
@@ -99,7 +113,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!(await safeEqual(passwordHash, userRow.password_hash))) return null;
 
         void db.query(
-          `update users set last_login = now(), updated_at = now()
+          `update team_users set last_login = now(), updated_at = now()
             where id = $1::uuid`,
           [userRow.id],
         );
@@ -107,6 +121,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return {
           id: userRow.id,
           name: userRow.username,
+          fullname: userRow.fullname,
           role: userRow.role,
           department: userRow.department,
         };
@@ -120,6 +135,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     jwt({ token, user }) {
       if (user) {
         token.role = user.role;
+        token.fullname = (user as { fullname?: string | null }).fullname ?? null;
         token.department = (user as { department?: string | null }).department ?? null;
       }
       return token;
@@ -127,7 +143,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     session({ session, token }) {
       if (session.user) {
         session.user.id = token.sub ?? "";
-        session.user.role = (token.role as string) ?? "user";
+        session.user.role = (token.role as string) ?? "team";
+        session.user.fullname = (token.fullname as string | null) ?? null;
         session.user.department = (token.department as string | null) ?? null;
       }
       return session;

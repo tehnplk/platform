@@ -40,7 +40,7 @@ body {
   font-family: var(--font-sans);
 }
 
-/* Light blue theme for /chat/admin */
+/* Light blue theme for /chat/team and /chat/admin/manage */
 .theme-light-blue {
   --bg: #f0f9ff;
   --panel: #ffffff;

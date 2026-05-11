@@ -55,6 +55,8 @@ type Message = {
   read_at: string | null;
   cancelled_at: string | null;
   client_id?: string | null;
+  team_user_id?: string | null;
+  sender_fullname?: string | null;
   attachments: Attachment[];
 };
 
@@ -71,6 +73,8 @@ type ServerMessage = {
   role: ChatRole;
   body: string;
   client_id: string | null;
+  team_user_id: string | null;
+  sender_fullname: string | null;
   created_at: string;
   read_at: string | null;
   cancelled_at: string | null;
@@ -231,6 +235,8 @@ function toMessage(s: ServerMessage): Message {
     read_at: s.read_at,
     cancelled_at: s.cancelled_at,
     client_id: s.client_id,
+    team_user_id: s.team_user_id,
+    sender_fullname: s.sender_fullname,
     attachments: s.attachments.map((a) => ({
       id: a.id,
       kind: a.kind,
@@ -943,6 +949,8 @@ export function ChatRoom({
       created_at: new Date().toISOString(),
       read_at: null,
       cancelled_at: null,
+      team_user_id: null,
+      sender_fullname: null,
       attachments: atts.map((a) => ({
         id: a.id,
         kind: a.kind,
@@ -1362,6 +1370,8 @@ function Bubble({
   const docAtts = cancelled
     ? []
     : msg.attachments.filter((a) => a.kind === "doc");
+  const showSenderFullname =
+    viewerRole === "user" && msg.role === "admin" && !!msg.sender_fullname;
 
   return (
     <div
@@ -1493,11 +1503,18 @@ function Bubble({
             </div>
           </div>
         )}
-        <span className="px-1 text-[10px] text-[var(--muted)] opacity-70">
-          {formatTime(msg.created_at)}
+        <span className="self-stretch text-[10px] text-[var(--muted)] opacity-70">
+          {showSenderFullname && (
+            <span className="block text-right text-[8px] leading-3 opacity-60">
+              {msg.sender_fullname}
+            </span>
+          )}
+          <span className={`block px-1 ${mine ? "text-right" : "text-left"}`}>
+            {formatTime(msg.created_at)}
           {mine && msg.read_at ? (
             <span className="ml-1">อ่านแล้ว</span>
           ) : null}
+          </span>
         </span>
       </div>
     </div>

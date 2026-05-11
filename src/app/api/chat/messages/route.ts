@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth, isTeamSession } from "@/auth";
 import { db } from "@/lib/db";
 import { broadcastNewMessage } from "@/lib/realtime-broadcast";
 import { sendAdminPushNotifications } from "@/lib/web-push";
@@ -21,6 +22,8 @@ type MessageRow = {
   role: "user" | "admin";
   body: string;
   client_id: string | null;
+  team_user_id: string | null;
+  sender_fullname: string | null;
   created_at: string;
   read_at: string | null;
   cancelled_at: string | null;
@@ -109,11 +112,22 @@ export async function GET(req: NextRequest) {
   );
 
   const msgs = await db.query<MessageRow>(
-    `select id, hoscode, role, body, client_id, created_at, read_at, cancelled_at
-       from messages
-      where hoscode = $1
-        and created_at >= now() - interval '15 days'
-      order by created_at asc
+    `select m.id,
+            m.hoscode,
+            m.role,
+            m.body,
+            m.client_id,
+            m.team_user_id::text,
+            nullif(tu.fullname, '') as sender_fullname,
+            m.created_at,
+            m.read_at,
+            m.cancelled_at
+       from messages m
+       left join team_users tu
+         on tu.id = m.team_user_id
+      where m.hoscode = $1
+        and m.created_at >= now() - interval '15 days'
+      order by m.created_at asc
       limit $2`,
     [hoscode, limit],
   );
@@ -168,6 +182,10 @@ export async function POST(req: NextRequest) {
   if (role !== "user" && role !== "admin") {
     return NextResponse.json({ error: "invalid role" }, { status: 400 });
   }
+  const session = role === "admin" ? await auth() : null;
+  if (role === "admin" && !isTeamSession(session)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   if (!body.trim() && files.length === 0) {
     return NextResponse.json({ error: "empty message" }, { status: 400 });
   }
@@ -198,10 +216,29 @@ export async function POST(req: NextRequest) {
     );
 
     const msgRes = await client.query<MessageRow>(
-      `insert into messages (hoscode, role, body, client_id)
-       values ($1, $2, $3, $4)
-       returning id, hoscode, role, body, client_id, created_at, read_at, cancelled_at`,
-      [hoscode, role, body, typeof clientId === "string" ? clientId : null],
+      `insert into messages (hoscode, role, body, client_id, team_user_id)
+       values ($1, $2, $3, $4, $5)
+       returning id,
+                 hoscode,
+                 role,
+                 body,
+                 client_id,
+                 team_user_id::text,
+                 (
+                   select nullif(fullname, '')
+                     from team_users
+                    where id = messages.team_user_id
+                 ) as sender_fullname,
+                 created_at,
+                 read_at,
+                 cancelled_at`,
+      [
+        hoscode,
+        role,
+        body,
+        typeof clientId === "string" ? clientId : null,
+        role === "admin" ? session?.user?.id : null,
+      ],
     );
     const msg = msgRes.rows[0];
 
@@ -231,7 +268,7 @@ export async function POST(req: NextRequest) {
       void sendAdminPushNotifications({
         title: `หน่วยบริการ ${hoscode}`,
         body: msg.body.trim() || "มีข้อความใหม่เข้ามา",
-        url: `/chat/admin?hoscode=${encodeURIComponent(hoscode)}`,
+        url: `/chat/team?hoscode=${encodeURIComponent(hoscode)}`,
         tag: `chat-admin-${hoscode}`,
       });
     }

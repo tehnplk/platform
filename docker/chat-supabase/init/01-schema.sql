@@ -42,11 +42,13 @@ create table if not exists messages (
   role        text not null check (role in ('user','admin')),
   body        text not null default '',
   client_id   text,
+  team_user_id uuid,
   created_at  timestamptz not null default now(),
   read_at     timestamptz,
   cancelled_at timestamptz
 );
 alter table messages add column if not exists cancelled_at timestamptz;
+alter table messages add column if not exists team_user_id uuid;
 create index if not exists messages_hoscode_created_at_idx
   on messages (hoscode, created_at desc);
 
@@ -90,16 +92,85 @@ create table if not exists push_subscriptions (
 create index if not exists push_subscriptions_role_idx
   on push_subscriptions (role);
 
-create table if not exists admin_users (
+drop table if exists admin_users;
+
+do $$
+begin
+  if to_regclass('public.team_users') is null and to_regclass('public.users') is not null then
+    alter table users rename to team_users;
+  end if;
+end$$;
+
+create table if not exists team_users (
   id             uuid primary key default gen_random_uuid(),
   username       text not null unique,
   password_hash  text not null,
-  role           text not null default 'admin' check (role in ('admin')),
+  fullname       text,
+  area           text,
+  department     text,
+  role           text not null default 'team' check (role in ('admin','team')),
+  is_active      boolean not null default true,
+  last_login     timestamptz,
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now()
 );
 
-insert into users (username, password_hash, role, department)
+alter table team_users add column if not exists fullname text;
+alter table team_users add column if not exists area text;
+
+update team_users
+   set role = 'team',
+       updated_at = now()
+ where role not in ('admin','team');
+
+alter table team_users
+  alter column role set default 'team';
+
+do $$
+declare
+  role_check record;
+begin
+  for role_check in
+    select conname
+      from pg_constraint
+     where conrelid = 'public.team_users'::regclass
+       and contype = 'c'
+       and pg_get_constraintdef(oid) like '%role%'
+  loop
+    execute format('alter table public.team_users drop constraint %I', role_check.conname);
+  end loop;
+
+  alter table public.team_users
+    add constraint team_users_role_check check (role in ('admin','team'));
+end$$;
+
+update messages
+   set team_user_id = (
+     select id
+       from team_users
+      where role = 'admin'
+      order by created_at asc
+      limit 1
+   )
+ where role = 'admin'
+   and team_user_id is null;
+
+do $$
+begin
+  if not exists (
+    select 1
+      from pg_constraint
+     where conname = 'messages_team_user_id_fkey'
+       and conrelid = 'public.messages'::regclass
+  ) then
+    alter table public.messages
+      add constraint messages_team_user_id_fkey
+      foreign key (team_user_id) references public.team_users(id)
+      on delete set null;
+  end if;
+end$$;
+
+insert into team_users (username, password_hash, role, department)
 values (
   'admin',
   'e0bc60c82713f64ef8a57c0c40d02ce24fd0141d5cc3086259c19b1e62a62bea',
@@ -111,18 +182,6 @@ on conflict (username) do update
       role = excluded.role,
       department = excluded.department,
       updated_at = now();
-
-create table if not exists users (
-  id             uuid primary key default gen_random_uuid(),
-  username       text not null unique,
-  password_hash  text not null,
-  department     text,
-  role           text not null default 'user',
-  is_active      boolean not null default true,
-  last_login     timestamptz,
-  created_at     timestamptz not null default now(),
-  updated_at     timestamptz not null default now()
-);
 
 -- Auto-create conversation row + bump last_message_at + unread on insert
 create or replace function bump_conversation() returns trigger
