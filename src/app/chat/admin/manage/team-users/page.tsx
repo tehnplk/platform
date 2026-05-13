@@ -22,7 +22,13 @@ type TeamUser = {
 
 type SortKey = keyof Pick<
   TeamUser,
-  "username" | "fullname" | "department" | "role" | "last_login" | "created_at"
+  | "username"
+  | "fullname"
+  | "department"
+  | "role"
+  | "last_login"
+  | "created_at"
+  | "is_active"
 >;
 type SortDirection = "asc" | "desc";
 type UserFormState = {
@@ -139,6 +145,8 @@ export default function TeamUsersManagePage() {
       let result = 0;
       if (sortKey === "last_login" || sortKey === "created_at") {
         result = compareDate(a[sortKey], b[sortKey]);
+      } else if (sortKey === "is_active") {
+        result = Number(a.is_active) - Number(b.is_active);
       } else {
         result = compareText(String(a[sortKey] ?? ""), String(b[sortKey] ?? ""));
       }
@@ -311,13 +319,14 @@ export default function TeamUsersManagePage() {
                   ["role", "Role"],
                   ["last_login", "Last login"],
                   ["created_at", "Created"],
+                  ["is_active", "Status"],
                 ].map(([key, label]) => (
                   <th key={key} className="px-6 py-3 font-semibold">
                     <button
                       type="button"
                       onClick={() => changeSort(key as SortKey)}
                       aria-label={`Sort by ${label}, ${sortLabel(key as SortKey)}`}
-                      className="inline-flex items-center gap-1.5 transition-colors hover:text-[var(--text)]"
+                      className="inline-flex cursor-pointer items-center gap-1.5 transition-colors hover:text-[var(--text)]"
                     >
                       <span>{label}</span>
                       <SortIcon
@@ -327,7 +336,6 @@ export default function TeamUsersManagePage() {
                     </button>
                   </th>
                 ))}
-                <th className="px-6 py-3 text-right font-semibold">Status</th>
                 <th className="px-6 py-3 text-right font-semibold">Actions</th>
               </tr>
             </thead>
@@ -400,7 +408,7 @@ export default function TeamUsersManagePage() {
                               form: formFromUser(user),
                             })
                           }
-                          className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--muted)] transition-colors hover:bg-[var(--panel)] hover:text-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/35"
+                          className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-[var(--muted)] transition-colors hover:bg-[var(--panel)] hover:text-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/35"
                         >
                           <EditIcon />
                         </button>
@@ -410,7 +418,7 @@ export default function TeamUsersManagePage() {
                           aria-label={`Delete ${user.username}`}
                           disabled={deletingId === user.id}
                           onClick={() => void deleteUser(user)}
-                          className="flex h-8 w-8 items-center justify-center rounded-md text-red-500 transition-colors hover:bg-red-500/10 hover:text-red-600 disabled:cursor-wait disabled:opacity-45 focus:outline-none focus:ring-2 focus:ring-red-300/45"
+                          className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-red-500 transition-colors hover:bg-red-500/10 hover:text-red-600 disabled:cursor-wait disabled:opacity-45 focus:outline-none focus:ring-2 focus:ring-red-300/45"
                         >
                           {deletingId === user.id ? <SpinnerIcon /> : <TrashIcon />}
                         </button>

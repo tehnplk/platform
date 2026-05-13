@@ -11,7 +11,7 @@ type ManagedConversation = {
   count_message: number;
 };
 
-type SortKey = keyof ManagedConversation | "action";
+type SortKey = keyof ManagedConversation;
 type SortDirection = "asc" | "desc";
 
 function formatDateTime(iso: string | null) {
@@ -236,7 +236,7 @@ export default function AdminManagePage() {
                   <button
                     type="button"
                     onClick={() => changeSort("last_chat_date_time")}
-                    className="inline-flex items-center gap-2 transition-colors hover:text-[var(--text)]"
+                    className="inline-flex cursor-pointer items-center gap-2 transition-colors hover:text-[var(--text)]"
                   >
                     last_chat_date_time <span>{sortLabel("last_chat_date_time")}</span>
                   </button>
@@ -245,7 +245,7 @@ export default function AdminManagePage() {
                   <button
                     type="button"
                     onClick={() => changeSort("hosname")}
-                    className="inline-flex items-center gap-2 transition-colors hover:text-[var(--text)]"
+                    className="inline-flex cursor-pointer items-center gap-2 transition-colors hover:text-[var(--text)]"
                   >
                     หน่วยบริการ <span>{sortLabel("hosname")}</span>
                   </button>
@@ -254,19 +254,13 @@ export default function AdminManagePage() {
                   <button
                     type="button"
                     onClick={() => changeSort("count_message")}
-                    className="inline-flex items-center gap-2 transition-colors hover:text-[var(--text)]"
+                    className="inline-flex cursor-pointer items-center gap-2 transition-colors hover:text-[var(--text)]"
                   >
                     count_message <span>{sortLabel("count_message")}</span>
                   </button>
                 </th>
                 <th className="px-6 py-3 text-right font-semibold">
-                  <button
-                    type="button"
-                    onClick={() => changeSort("action")}
-                    className="inline-flex items-center gap-2 transition-colors hover:text-[var(--text)]"
-                  >
-                    Actions <span>{sortLabel("action")}</span>
-                  </button>
+                  Actions
                 </th>
               </tr>
             </thead>
@@ -319,7 +313,7 @@ export default function AdminManagePage() {
                             title={`Delete conversation ${item.hoscode}`}
                             aria-label={`Delete conversation ${item.hoscode}`}
                             onClick={() => void deleteConversation(item.hoscode)}
-                            className="flex h-8 w-8 items-center justify-center rounded-md text-red-500 transition-colors hover:bg-red-500/10 hover:text-red-600 disabled:cursor-wait disabled:opacity-45 focus:outline-none focus:ring-2 focus:ring-red-300/45"
+                            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-red-500 transition-colors hover:bg-red-500/10 hover:text-red-600 disabled:cursor-wait disabled:opacity-45 focus:outline-none focus:ring-2 focus:ring-red-300/45"
                           >
                             {deleting ? <SpinnerIcon /> : <TrashIcon />}
                           </button>
