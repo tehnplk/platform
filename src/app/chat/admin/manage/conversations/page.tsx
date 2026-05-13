@@ -265,7 +265,7 @@ export default function AdminManagePage() {
                     onClick={() => changeSort("action")}
                     className="inline-flex items-center gap-2 transition-colors hover:text-[var(--text)]"
                   >
-                    action <span>{sortLabel("action")}</span>
+                    Actions <span>{sortLabel("action")}</span>
                   </button>
                 </th>
               </tr>
@@ -312,14 +312,18 @@ export default function AdminManagePage() {
                         {item.count_message.toLocaleString("th-TH")}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button
-                          type="button"
-                          disabled={deleting}
-                          onClick={() => void deleteConversation(item.hoscode)}
-                          className="rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-2 text-[13px] font-semibold text-red-200 transition-colors hover:bg-red-500/20 disabled:cursor-wait disabled:opacity-50"
-                        >
-                          {deleting ? "กำลังลบ..." : "ลบ"}
-                        </button>
+                        <div className="inline-flex items-center rounded-lg border border-[var(--border)] bg-[var(--inset)] p-1">
+                          <button
+                            type="button"
+                            disabled={deleting}
+                            title={`Delete conversation ${item.hoscode}`}
+                            aria-label={`Delete conversation ${item.hoscode}`}
+                            onClick={() => void deleteConversation(item.hoscode)}
+                            className="flex h-8 w-8 items-center justify-center rounded-md text-red-500 transition-colors hover:bg-red-500/10 hover:text-red-600 disabled:cursor-wait disabled:opacity-45 focus:outline-none focus:ring-2 focus:ring-red-300/45"
+                          >
+                            {deleting ? <SpinnerIcon /> : <TrashIcon />}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -387,6 +391,53 @@ function ArrowLeftIcon() {
     >
       <path d="M19 12H5" />
       <path d="m12 19-7-7 7-7" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.1}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+      aria-hidden
+    >
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M19 6l-1 14H6L5 6" />
+      <path d="M10 11v5" />
+      <path d="M14 11v5" />
+    </svg>
+  );
+}
+
+function SpinnerIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      className="h-4 w-4 animate-spin"
+      aria-hidden
+    >
+      <circle
+        cx="12"
+        cy="12"
+        r="9"
+        stroke="currentColor"
+        strokeWidth={2}
+        opacity={0.25}
+      />
+      <path
+        d="M21 12a9 9 0 0 0-9-9"
+        stroke="currentColor"
+        strokeWidth={2.5}
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
