@@ -772,8 +772,9 @@ function TeamProfileCard({
   const department = profile?.department?.trim() || "Chat team";
   const roleLabel = profile?.role === "admin" ? "Admin" : "Team";
   const initials = getInitials(displayName);
-  const handleSignOut = () => {
-    void signOut({ callbackUrl: "/login" });
+  const handleSignOut = async () => {
+    await signOut({ redirect: false, redirectTo: "/login" });
+    window.location.assign("/login");
   };
 
   if (!expanded) {
