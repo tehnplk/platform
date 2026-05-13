@@ -32,9 +32,8 @@
 ## Testing result files (important**)
 - must place at  directory @.playwright-cli
 
-## Run or build or deploy
+## build / deploy / test
 - Don't do if user not ask.
 
 ## deployment
-- read @docs/host.md
-- main url = https://platform.plkhealth.go.th/ 
+- read @docs/production.md
