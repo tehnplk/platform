@@ -22,5 +22,5 @@ export async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/chat/team/:path*", "/chat/admin/manage/:path*"],
+  matcher: ["/chat/team/:path*", "/chat/admin/manage", "/chat/admin/manage/:path*"],
 };

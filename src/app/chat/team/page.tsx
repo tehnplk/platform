@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Suspense, useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
 import { RealtimeClient } from "@supabase/realtime-js";
 import { ChatRoom } from "@/components/ChatRoom";
 import { REALTIME_ANON_KEY, REALTIME_URL } from "@/lib/realtime-config";
@@ -39,6 +40,13 @@ type AdminMessagePayload = {
     hoscode?: string;
     role?: "user" | "admin";
   };
+};
+
+type TeamUserProfile = {
+  name?: string | null;
+  fullname?: string | null;
+  department?: string | null;
+  role?: string | null;
 };
 
 const LOCAL_HIDDEN_CONVERSATIONS_KEY = "chat:hiddenConversations";
@@ -149,6 +157,7 @@ function AdminChat() {
   const router = useRouter();
   const selected = params.get("hoscode")?.trim() || null;
   const [list, setList] = useState<Conversation[]>([]);
+  const [userProfile, setUserProfile] = useState<TeamUserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<UnitSuggestion[]>([]);
@@ -219,6 +228,25 @@ function AdminChat() {
   useEffect(() => {
     void registerAdminPush();
   }, [registerAdminPush]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/auth/session", { cache: "no-store" })
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json() as Promise<{ user?: TeamUserProfile }>;
+      })
+      .then((session) => {
+        if (!cancelled) setUserProfile(session.user ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setUserProfile(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!supportsBrowserNotification()) return;
@@ -692,12 +720,13 @@ function AdminChat() {
             })}
           </div>
           <div
-            className={`border-t border-[var(--border)] ${
+            className={`shrink-0 border-t border-[var(--border)] ${
               sidebarOpen ? "p-4" : "p-2"
             }`}
           >
+            <TeamProfileCard profile={userProfile} expanded={sidebarOpen} />
             <Link
-              href="/chat/admin/manage"
+              href="/chat/admin/manage/conversations"
               title="Manage conversations"
               aria-label="Manage conversations"
               className={`flex items-center rounded-xl border border-[var(--border)] bg-[var(--panel)] text-[13px] font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)] ${
@@ -731,6 +760,91 @@ function AdminChat() {
   );
 }
 
+function TeamProfileCard({
+  profile,
+  expanded,
+}: {
+  profile: TeamUserProfile | null;
+  expanded: boolean;
+}) {
+  const displayName =
+    profile?.fullname?.trim() || profile?.name?.trim() || "Team user";
+  const department = profile?.department?.trim() || "Chat team";
+  const roleLabel = profile?.role === "admin" ? "Admin" : "Team";
+  const initials = getInitials(displayName);
+  const handleSignOut = () => {
+    void signOut({ callbackUrl: "/login" });
+  };
+
+  if (!expanded) {
+    return (
+      <div className="mb-3 flex flex-col items-center gap-2">
+        <div
+          className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--accent)] bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] text-[12px] font-bold text-white shadow-sm"
+          title={`${displayName} · ${roleLabel}`}
+          aria-label={`${displayName} ${roleLabel}`}
+        >
+          {initials}
+        </div>
+        <button
+          type="button"
+          onClick={handleSignOut}
+          title="Sign out"
+          aria-label="Sign out"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-rose-300/35 bg-rose-500/10 text-rose-500 transition-colors hover:border-rose-400 hover:bg-rose-500/15"
+        >
+          <SignOutIcon />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-3">
+      <div className="mb-1.5 px-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--muted)]">
+        Profile
+      </div>
+      <div className="flex min-w-0 items-center gap-3 rounded-xl border border-[var(--accent)]/45 bg-[var(--inset)] px-3 py-3 shadow-sm">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)] text-[12px] font-bold text-white">
+          {initials}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[13px] font-semibold text-[var(--text)]">
+            {displayName}
+          </div>
+          <div className="mt-0.5 flex min-w-0 items-center gap-2">
+            <span className="truncate text-[11px] text-[var(--muted)]">
+              {department}
+            </span>
+            <span className="shrink-0 rounded-full bg-[var(--accent)]/15 px-2 py-0.5 text-[10px] font-bold text-[var(--accent)]">
+              {roleLabel}
+            </span>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={handleSignOut}
+          title="Sign out"
+          aria-label="Sign out"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-rose-300/35 bg-rose-500/10 text-rose-500 transition-colors hover:border-rose-400 hover:bg-rose-500/15"
+        >
+          <SignOutIcon />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function getInitials(value: string) {
+  const parts = value.trim().split(/\s+/).filter(Boolean);
+  const letters =
+    parts.length > 1
+      ? `${parts[0]?.[0] ?? ""}${parts[1]?.[0] ?? ""}`
+      : value.slice(0, 2);
+
+  return letters.toUpperCase() || "TU";
+}
+
 function UserAvatarIcon() {
   return (
     <svg
@@ -745,6 +859,25 @@ function UserAvatarIcon() {
     >
       <path d="M20 21a8 8 0 0 0-16 0" />
       <circle cx="12" cy="8" r="4" />
+    </svg>
+  );
+}
+
+function SignOutIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+      aria-hidden
+    >
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="M16 17l5-5-5-5" />
+      <path d="M21 12H9" />
     </svg>
   );
 }
